@@ -1,0 +1,7 @@
+# Excluir datos financieros privados y Excel local
+*.xlsx
+*.xls
+config.js
+data.js
+.DS_Store
+node_modules/
