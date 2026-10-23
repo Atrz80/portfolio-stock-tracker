@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestor de Cartera Trade Republic - Dashboard Avanzado</title>
+  <!-- Chart.js para gráficos dinámicos -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: #0b0f17;
+      color: #e2e8f0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 750px;
+    }
+
+    .controls-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      background: #111827;
+      padding: 12px 16px;
+      border-radius: 10px;
+      border: 1px solid #1e293b;
+    }
+
+    .controls-bar label {
+      font-size: 0.9em;
+      color: #94a3b8;
+      font-weight: 600;
+    }
+
+    .controls-bar select {
+      background: #1e293b;
+      color: #ffffff;
+      border: 1px solid #334155;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 0.9em;
+      font-weight: 600;
+      cursor: pointer;
+      outline: none;
+    }
+
+    .dashboard-card {
+      background: #111827;
+      padding: 20px;
+      border-radius: 12px;
+      border: 1px solid #1e293b;
+      margin-bottom: 20px;
+    }
+
+    .dashboard-title {
+      font-size: 0.85em;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #94a3b8;
+      margin-bottom: 4px;
+    }
+
+    .total-amount {
+      font-size: 2.2em;
+      font-weight: 800;
+      color: #ffffff;
+      margin-bottom: 16px;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      padding-top: 16px;
+      border-top: 1px solid #1e293b;
+    }
+
+    .metric-item .label {
+      font-size: 0.75em;
+      color: #94a3b8;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .metric-item .value {
+      font-size: 0.95em;
+      font-weight: 700;
+      color: #f1f5f9;
+    }
+
+    /* Estilos para gráficos */
+    .chart-container {
+      background: #111827;
+      padding: 20px;
+      border-radius: 12px;
+      border: 1px solid #1e293b;
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    .chart-header {
+      font-size: 0.85em;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      margin-bottom: 15px;
+    }
+
+    .section-title {
+      font-size: 0.9em;
+      font-weight: 700;
+      color: #94a3b8;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .asset-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .asset-card {
+      background: #111827;
+      padding: 14px 16px;
+      border-radius: 10px;
+      border: 1px solid #1e293b;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .asset-info .name {
+      font-weight: 700;
+      color: #ffffff;
+      font-size: 0.95em;
+      margin-bottom: 2px;
+    }
+
+    .asset-info .details {
+      font-size: 0.8em;
+      color: #64748b;
+    }
+
+    .asset-metrics {
+      text-align: right;
+    }
+
+    .asset-metrics .val-eur {
+      font-weight: 700;
+      color: #ffffff;
+      font-size: 0.95em;
+      margin-bottom: 2px;
+    }
+
+    .asset-metrics .gain {
+      font-size: 0.85em;
+      font-weight: 700;
+    }
+
+    .positive {
+      color: #22c55e !important;
+    }
+
+    .negative {
+      color: #ef4444 !important;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Selector de Periodo -->
+  <div class="controls-bar">
+    <label for="periodSelect">FILTRAR PERIODO:</label>
+    <select id="periodSelect" onchange="actualizarDashboard(this.value)">
+      <option value="hoy">Hoy</option>
+      <option value="7d">7 días</option>
+      <option value="30d">30 días</option>
+      <option value="3m">3 meses</option>
+      <option value="6m">6 meses</option>
+      <option value="mtd">MTD</option>
+      <option value="ytd" selected>YTD</option>
+      <option value="total">Desde compra</option>
+    </select>
+  </div>
+
+  <!-- Resumen de Cartera -->
+  <div class="dashboard-card">
+    <div class="dashboard-title">Patrimonio Total</div>
+    <div id="patrimonioTotal" class="total-amount">54.348,01 €</div>
+
+    <div class="metrics-grid">
+      <div class="metric-item">
+        <span class="label">Invertido Base</span>
+        <span id="invertidoBase" class="value">31.060,01 €</span>
+      </div>
+      <div class="metric-item">
+        <span class="label">Efectivo / Liquidez</span>
+        <span class="value">23.288,00 €</span>
+      </div>
+      <div class="metric-item">
+        <span class="label">Ganancia por Precio</span>
+        <span id="gananciaEUR" class="value">0,00 €</span>
+        <span id="gananciaPCT" class="value" style="font-size: 0.8em;">(0.00%)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gráfico Principal de Evolución de Valor -->
+  <div class="chart-container">
+    <div class="chart-header">Evolución de Rendimiento (%)</div>
+    <canvas id="portfolioChart" height="200"></canvas>
+  </div>
+
+  <!-- Gráfico de Comparativa por Activo -->
+  <div class="chart-container">
+    <div class="chart-header">Rendimiento por Activo (€)</div>
+    <canvas id="assetsChart" height="180"></canvas>
+  </div>
+
+  <!-- Posiciones -->
+  <div class="section-title">Posiciones & Análisis (EUR)</div>
+  <div id="posicionesContainer" class="asset-list"></div>
+
+</div>
+
+<script>
+  const efectivoEUR = 23288.00;
+
+  const posiciones = [
+    { 
+      nombre: "Vanguard FTSE All-World UCITS ETF", 
+      tit: 122, 
+      precioAct: 168.95, 
+      invertido: 20900.00, 
+      retornos: { hoy: 0.05, '7d': -0.40, '30d': 1.10, '3m': 2.00, '6m': 3.20, mtd: -0.50, ytd: -0.80, total: -1.38 } 
+    },
+    { 
+      nombre: "iShares MSCI Global Semiconductors", 
+      tit: 270, 
+      precioAct: 15.91, 
+      invertido: 4568.00, 
+      retornos: { hoy: -0.20, '7d': -2.10, '30d': -4.20, '3m': -1.10, '6m': 0.50, mtd: -3.00, ytd: -5.10, total: -5.97 } 
+    },
+    { 
+      nombre: "Amundi Core Nasdaq-100 Swap", 
+      tit: 28, 
+      precioAct: 105.36, 
+      invertido: 3031.00, 
+      retornos: { hoy: 0.10, '7d': -0.60, '30d': -1.00, '3m': 0.80, '6m': 2.10, mtd: -1.20, ytd: -2.00, total: -2.66 } 
+    },
+    { 
+      nombre: "iShares Core MSCI EM IMI", 
+      tit: 22, 
+      precioAct: 45.17, 
+      invertido: 1025.00, 
+      retornos: { hoy: -0.05, '7d': -1.10, '30d': -2.50, '3m': -0.40, '6m': 1.00, mtd: -1.80, ytd: -2.70, total: -3.05 } 
+    },
+    { 
+      nombre: "NEC Corporation", 
+      tit: 23, 
+      precioAct: 31.38, 
+      invertido: 694.40, 
+      retornos: { hoy: 0.70, '7d': 1.40, '30d': 3.00, '3m': 4.00, '6m': 4.80, mtd: 2.00, ytd: 3.50, total: 3.94 } 
+    },
+    { 
+      nombre: "Sekisui Chemical", 
+      tit: 40, 
+      precioAct: 14.55, 
+      invertido: 572.00, 
+      retornos: { hoy: 0.15, '7d': 0.80, '30d': 1.00, '3m': 1.90, '6m': 2.90, mtd: 0.40, ytd: 1.50, total: 1.75 } 
+    },
+    { 
+      nombre: "iShares MSCI World Small Cap", 
+      tit: 55, 
+      precioAct: 9.02, 
+      invertido: 500.50, 
+      retornos: { hoy: -0.02, '7d': -0.30, '30d': -0.90, '3m': -0.10, '6m': 0.40, mtd: -0.50, ytd: -0.70, total: -0.88 } 
+    }
+  ];
+
+  // Históricos simulados por periodo para el gráfico de línea
+  const historicoGrafico = {
+    hoy: { labels: ['09:00', '11:00', '13:00', '15:00', '17:30'], data: [0, 0.08, -0.05, 0.01, 0.02] },
+    '7d': { labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'], data: [-0.2, -0.5, 0.1, -0.8, -0.4, -0.3, -0.5] },
+    '30d': { labels: ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'], data: [0.5, -0.8, -1.5, -0.9] },
+    '3m': { labels: ['Ago', 'Sep', 'Oct'], data: [1.2, -0.5, -1.2] },
+    '6m': { labels: ['May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct'], data: [-0.5, 1.8, -0.8, 0.5, 2.8, -1.4] },
+    mtd: { labels: ['01 Oct', '08 Oct', '15 Oct', '23 Oct'], data: [-0.2, 0.5, -1.1, -0.8] },
+    ytd: { labels: ['Ene', 'Mar', 'May', 'Jul', 'Sep', 'Oct'], data: [0, 1.5, -0.8, 2.2, 1.1, -1.4] },
+    total: { labels: ['2024', '2025', '2026'], data: [2.5, 5.8, -2.07] }
+  };
+
+  let chartPortfolioInstance = null;
+  let chartAssetsInstance = null;
+
+  function actualizarDashboard(periodo) {
+    try {
+      let valorInversionesTotal = 0;
+      let valorInvertidoBaseTotal = 0;
+      let gananciaTotalPeriodoEUR = 0;
+
+      const container = document.getElementById("posicionesContainer");
+      if (!container) return;
+      
+      let htmlContent = "";
+      const assetLabels = [];
+      const assetGainsEUR = [];
+      const assetColors = [];
+
+      posiciones.forEach(pos => {
+        const valorPosicionEUR = pos.tit * pos.precioAct;
+        valorInversionesTotal += valorPosicionEUR;
+        valorInvertidoBaseTotal += pos.invertido;
+
+        const pctPeriodo = (pos.retornos && pos.retornos[periodo] !== undefined) ? pos.retornos[periodo] : 0;
+        const gananciaPosEUR = valorPosicionEUR * (pctPeriodo / 100);
+        gananciaTotalPeriodoEUR += gananciaPosEUR;
+
+        const cssClass = pctPeriodo >= 0 ? "positive" : "negative";
+        const sign = pctPeriodo >= 0 ? "+" : "";
+
+        assetLabels.push(pos.nombre.split(' ')[0]);
+        assetGainsEUR.push(gananciaPosEUR.toFixed(2));
+        assetColors.push(pctPeriodo >= 0 ? 'rgba(34, 197, 94, 0.8)' : 'rgba(239, 68, 68, 0.8)');
+
+        htmlContent += `
+          <div class="asset-card">
+            <div class="asset-info">
+              <div class="name">${pos.nombre}</div>
+              <div class="details">${pos.tit} tit. · ${pos.precioAct.toFixed(2)} €</div>
+            </div>
+            <div class="asset-metrics">
+              <div class="val-eur">${valorPosicionEUR.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</div>
+              <div class="gain ${cssClass}">
+                ${sign}${gananciaPosEUR.toFixed(2)} € (${sign}${pctPeriodo.toFixed(2)}%)
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = htmlContent;
+
+      const patrimonioTotal = valorInversionesTotal + efectivoEUR;
+      const pctGlobalInversiones = valorInvertidoBaseTotal > 0 ? (gananciaTotalPeriodoEUR / valorInvertidoBaseTotal) * 100 : 0;
+
+      document.getElementById("patrimonioTotal").textContent = patrimonioTotal.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+      document.getElementById("invertidoBase").textContent = valorInvertidoBaseTotal.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+
+      const signGlobal = gananciaTotalPeriodoEUR >= 0 ? "+" : "";
+      const classGlobal = gananciaTotalPeriodoEUR >= 0 ? "positive" : "negative";
+
+      const elemGananciaEUR = document.getElementById("gananciaEUR");
+      const elemGananciaPCT = document.getElementById("gananciaPCT");
+
+      if (elemGananciaEUR) {
+        elemGananciaEUR.className = "value " + classGlobal;
+        elemGananciaEUR.textContent = signGlobal + gananciaTotalPeriodoEUR.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+      }
+
+      if (elemGananciaPCT) {
+        elemGananciaPCT.className = "value " + classGlobal;
+        elemGananciaPCT.textContent = "(" + signGlobal + pctGlobalInversiones.toFixed(2) + "%)";
+      }
+
+      // Renderizar / Actualizar Gráficos
+      renderCharts(periodo, assetLabels, assetGainsEUR, assetColors);
+
+    } catch (err) {
+      console.error("Error al actualizar dashboard:", err);
+    }
+  }
+
+  function renderCharts(periodo, assetLabels, assetGainsEUR, assetColors) {
+    const hist = historicoGrafico[periodo] || historicoGrafico['ytd'];
+    const isPositive = hist.data[hist.data.length - 1] >= 0;
+    const lineColor = isPositive ? '#22c55e' : '#ef4444';
+    const fillColor = isPositive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)';
+
+    // Gráfico 1: Línea de Evolución del Rendimiento
+    const ctx1 = document.getElementById('portfolioChart').getContext('2d');
+    if (chartPortfolioInstance) chartPortfolioInstance.destroy();
+
+    chartPortfolioInstance = new Chart(ctx1, {
+      type: 'line',
+      data: {
+        labels: hist.labels,
+        datasets: [{
+          data: hist.data,
+          borderColor: lineColor,
+          backgroundColor: fillColor,
+          borderWidth: 2,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
+          y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', callback: v => v + '%' } }
+        }
+      }
+    });
+
+    // Gráfico 2: Barras por Activo
+    const ctx2 = document.getElementById('assetsChart').getContext('2d');
+    if (chartAssetsInstance) chartAssetsInstance.destroy();
+
+    chartAssetsInstance = new Chart(ctx2, {
+      type: 'bar',
+      data: {
+        labels: assetLabels,
+        datasets: [{
+          data: assetGainsEUR,
+          backgroundColor: assetColors,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
+          y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', callback: v => v + ' €' } }
+        }
+      }
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", function() {
+    actualizarDashboard("ytd");
+  });
+</script>
+
+</body>
+</html>
