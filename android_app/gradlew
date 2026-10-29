@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# Gradle wrapper script for Unix/Linux
+APP_BASE_NAME=`basename "$0"`
+# ... standard wrapper logic ...
+exec gradle "$@"
