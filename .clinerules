@@ -1,0 +1,6 @@
+# Reglas de Agente para Cline (.clinerules)
+
+1. **Lectura obligatoria de Memoria**: Al iniciar cualquier tarea o sesión, lee siempre el archivo `MEMORY.md` para comprender el contexto actual, la arquitectura y el estado de avance del proyecto.
+2. **Actualización de Progreso**: Al finalizar exitosamente una tarea o hito, actualiza inmediatamente el archivo `MEMORY.md` reflejando el nuevo estado de avance.
+3. **Gestión de Cuotas de Gemini**: Al interactuar con la API de Google Gemini en el Free Tier (`gemini-1.5-flash`), implementa manejo de errores robusto para excepciones de cuota (`ResourceExhausted` / HTTP 429) con reintentos exponenciales (*exponential backoff*).
+4. **Simplicidad y Eficiencia**: Prioriza código limpio, modular y funcional sin sobreingeniería, adaptado a entornos de desarrollo personal con VS Code y Docker.

@@ -1,0 +1,7 @@
+google-generativeai
+chromadb
+python-dotenv
+pydantic-settings
+fastapi
+uvicorn
+requests
