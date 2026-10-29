@@ -16,7 +16,7 @@ Desarrollar una aplicación móvil nativa en Android para el control y seguimien
 - FastAPI en el backend con soporte para recarga en caliente en Docker.
 - API Key configurada y validada en `.env`.
 - Frontend Android estructurado con Jetpack Compose, Retrofit y gráficos vectoriales nativos en Canvas (`PriceChartCard`).
-- GitHub Actions configurado en `.github/workflows/build-apk.yml` para compilar el APK de Android sin necesidad de Android Studio local.
+- GitHub Actions configurado en `.github/workflows/build-apk.yml` con Gradle 8.7 y AGP 8.4.0 para evitar errores de compatibilidad `HasConvention`.
 
 ## 📊 4. Estado Actual de Avance
 - [x] Limpieza y optimización del entorno Docker (eliminación de One-API, MySQL, Redis).
@@ -25,7 +25,7 @@ Desarrollar una aplicación móvil nativa en Android para el control y seguimien
 - [x] Implementación de endpoints de prueba para portfolio financiero y Gemini.
 - [x] Creación de la estructura frontend Android en Kotlin con Jetpack Compose (DashboardScreen, Modelos y Retrofit).
 - [x] Implementación de componente de gráficos de evolución de precios en tiempo real (`PriceChartComponent.kt`).
-- [x] Configuración del pipeline de CI/CD en GitHub Actions para compilación automática de APK.
+- [x] Configuración y optimización del pipeline de CI/CD en GitHub Actions (Gradle 8.7 + AGP 8.4.0).
 - [ ] Pruebas end-to-end de integración Frontend <-> Backend.
 
 
