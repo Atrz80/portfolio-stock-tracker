@@ -6,6 +6,10 @@ on:
     types:
       - completed
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   autofix:
     runs-on: ubuntu-latest
