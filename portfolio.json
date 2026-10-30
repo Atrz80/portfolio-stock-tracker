@@ -1,0 +1,10 @@
+[
+    {"name": "Vanguard FTSE All-World UCITS ETF - USD ACC", "ticker": "IE00BK5BQT80 • A2PKXG", "shares": 122, "price": 171.16, "value": 20881.52, "gain": -115.90, "gainPct": -0.55, "allocation": 38.00, "badge": "bg-indigo-500", "init": "V"},
+    {"name": "iShares MSCI Global Semiconductors UCITS ETF", "ticker": "IE000I8KRLL9 • A3CVRA", "shares": 270, "price": 17.10, "value": 4617.00, "gain": -81.00, "gainPct": -1.72, "allocation": 8.40, "badge": "bg-blue-600", "init": "i"},
+    {"name": "Amundi Core Nasdaq-100 Swap UCITS ETF Acc", "ticker": "LU1829221024 • LYX0OF", "shares": 28, "price": 106.87, "value": 2992.36, "gain": -45.64, "gainPct": -1.50, "allocation": 5.45, "badge": "bg-sky-600", "init": "Am"},
+    {"name": "iShares Core MSCI EM IMI UCITS ETF - USD ACC", "ticker": "IE00BKM4GZ66 • A111X9", "shares": 22, "price": 45.80, "value": 1007.60, "gain": -15.62, "gainPct": -1.53, "allocation": 1.83, "badge": "bg-blue-600", "init": "i"},
+    {"name": "NEC Corporation", "ticker": "JP3733000008 • 853675", "shares": 23, "price": 27.66, "value": 636.18, "gain": -44.62, "gainPct": -6.55, "allocation": 1.16, "badge": "bg-purple-600", "init": "NEC"},
+    {"name": "Sekisui Chemical", "ticker": "JP3419400001 • 855112", "shares": 40, "price": 14.40, "value": 576.00, "gain": 4.00, "gainPct": 0.70, "allocation": 1.05, "badge": "bg-teal-600", "init": "S"},
+    {"name": "iShares MSCI World Small Cap UCITS ETF - USD ACC", "ticker": "IE00B4RFH31 • A2DWBY", "shares": 55, "price": 9.21, "value": 506.55, "gain": 2.20, "gainPct": 0.44, "allocation": 0.92, "badge": "bg-blue-600", "init": "i"},
+    {"name": "JX Advanced Metals", "ticker": "JP3379550001 • 724563", "shares": 25, "price": 17.75, "value": 443.75, "gain": 6.25, "gainPct": 1.43, "allocation": 0.81, "badge": "bg-emerald-600", "init": "JX"}
+]

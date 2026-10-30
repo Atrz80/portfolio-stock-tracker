@@ -9,3 +9,6 @@ venv/
 dist/
 build/
 *.egg-info/
+python_portable/
+output.log
+

@@ -1,34 +1,24 @@
-# MEMORY.md - Memoria Persistente del Proyecto (Portfolio Financiero Android + Backend Python + Gemini)
+# MEMORY.md - Memoria Persistente del Proyecto (Portfolio Stock Tracker + CrewAI + OpenRouter)
+
+> ℹ️ *Nota arquitectónica*: Para la documentación específica del proyecto de seguimiento de portfolio (HTML, JS, Google Sheets, Telegram Bot) y sus normas estrictas de modularidad y manejo de errores, consulta el archivo [PROJECT_MEMORY.md](./PROJECT_MEMORY.md).
 
 ## 🎯 1. Objetivos del Proyecto
-Desarrollar una aplicación móvil nativa en Android para el control y seguimiento de un portfolio financiero personal con datos y gráficos en tiempo real, impulsada por análisis y recomendaciones de la API de Google Gemini (Free Tier).
+Desarrollar una aplicación web ligera (HTML/JS) para el control y seguimiento de un portfolio de acciones e inversiones, integrada con Google Sheets y un bot de Telegram, potenciada por **CrewAI** integrado con OpenRouter.
 
 ## 🏗️ 2. Arquitectura del Sistema
-- **Frontend**: Android (Kotlin / Jetpack Compose) - Interfaz de usuario moderna, gráficos en tiempo real con Canvas y consumo de API REST.
-- **Backend**: Python (FastAPI + Uvicorn) - API REST central, lógica de negocio y procesamiento de datos financieros.
-- **Inteligencia Artificial**: Google Gemini API (`gemini-1.5-flash`) para análisis predictivo y asesoramiento financiero automatizado.
-- **Persistencia / Base de Datos**: ChromaDB y almacenamiento ligero en SQLite/JSON para el portfolio local.
-- **Contenedorización, CI/CD & Autocuración**: Docker & Docker Compose para el backend, GitHub Actions para APKs y bot autónomo de autocuración con Gemini (`auto-fix.yml` y `autofix.py`).
+- **Frontend**: HTML5 / CSS3 / Vanilla JavaScript modular.
+- **Base de Datos / Persistencia**: Google Sheets.
+- **Orquestación de IA**: **CrewAI** (Equipo especializado: Expert Software Developer, Senior QA & Testing Engineer, y GitHub Incident & Issue Resolver) conectados a OpenRouter (`openrouter/deepseek/deepseek-chat`).
 
-## 🛠️ 3. Decisiones Técnicas Tomadas
-- Uso del SDK oficial de Google (`google-generativeai`) conectado directamente.
-- Uso del modelo Free Tier `gemini-1.5-flash` por su alta velocidad y manejo de cuotas.
-- FastAPI en el backend con soporte para recarga en caliente en Docker.
-- API Key configurada y validada en `.env`.
-- Frontend Android estructurado con Jetpack Compose, Retrofit y gráficos vectoriales nativos en Canvas (`PriceChartCard`).
-- GitHub Actions configurado con Gradle 8.7 y AGP 8.4.0.
-- **Sistema Autónomo de Autocuración (`auto-fix.yml` y `autofix.py`)**: Analiza fallos de compilación mediante Gemini AI, aplica correcciones (como `android.useAndroidX=true`) y hace commit/push automático a `main`.
+## 📊 3. Estado Actual de Avance
+- [x] Eliminación total de LiteLLM y proxies obsoletos.
+- [x] Configuración de **CrewAI** y almacenamiento seguro de las API Keys en `.env`.
+- [x] Creación del equipo especializado de agentes en `portfolio_crew.py` con integración dinámica de incidencias de GitHub y manejo de reintentos exponenciales.
+- [x] Sincronización y preparación de ficheros pendientes para subida al repositorio remoto (`portfolio-stock-tracker`).
+- [ ] Desarrollo completo de módulos, tests unitarios y resolución automatizada de incidencias guiados por el equipo CrewAI.
 
-## 📊 4. Estado Actual de Avance
-- [x] Limpieza y optimización del entorno Docker (eliminación de One-API, MySQL, Redis).
-- [x] Creación de la estructura base del backend (FastAPI + Gemini).
-- [x] Configuración de credenciales (`GOOGLE_API_KEY`) y variables de entorno.
-- [x] Implementación de endpoints de prueba para portfolio financiero y Gemini.
-- [x] Creación de la estructura frontend Android en Kotlin con Jetpack Compose (DashboardScreen, Modelos y Retrofit).
-- [x] Implementación de componente de gráficos de evolución de precios en tiempo real (`PriceChartComponent.kt`).
-- [x] Configuración y optimización del pipeline de CI/CD en GitHub Actions (Gradle 8.7 + AGP 8.4.0).
-- [x] Configuración del Sistema Autónomo de Autocuración en GitHub con Gemini AI (`auto-fix.yml` + `autofix.py`).
-- [ ] Pruebas end-to-end de integración Frontend <-> Backend.
+
+
 
 
 
