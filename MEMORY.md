@@ -35,7 +35,7 @@ Aplicación de seguimiento de portfolio con frontend web, backend FastAPI, memor
 ## ⚠️ Limitaciones y pendientes
 - Docker no está instalado en este equipo; `docker-compose.yml` no se pudo ejecutar. Su volumen se corrigió para no ocultar el paquete `app/` y los datos de portfolio usan un volumen persistente.
 - Los proveedores disponibles no admiten tool-calling de forma fiable; `CREWAI_AGENCY_MODE=crew` puede devolver HTTP 503 del gateway. El modo directo es el predeterminado.
-- La copia temporal del workspace C: se elimina tras validar el destino; no debemantenerse una segunda copia del proyecto.
+- El contenido de la copia temporal del workspace C: fue eliminado tras validar el destino; no queda una segunda copia del código. La carpeta raíz vacía puede tardar en eliminarse si la terminal de Cline mantiene abierto su handle.
 - `scripts/archive/` contiene generadores históricos no usados; uno (`generate_dashboard.py`) conserva un error de indentación preexistente y queda fuera de la compilación productiva.
 - Google Sheets, Telegram y Docker siguen siendo trabajo pendiente/por verificar; no deben considerarse implementados solo por la documentación antigua.
 - `google.generativeai` está en desuso y emite avisos; migrar a `google-genai` es una mejora futura.
