@@ -11,4 +11,12 @@ build/
 *.egg-info/
 python_portable/
 output.log
+output.txt
+.services.json
+logs/
+storage/
+runtime/
+.pytest_cache/
+validation_*.log
+validation_*.pid
 

@@ -1,40 +1,37 @@
-# PROJECT_MEMORY.md - Portfolio Stock Tracker (HTML + JS + Google Sheets + Telegram Bot + LiteLLM AI)
+# PROJECT_MEMORY.md - Portfolio Stock Tracker + FastAPI + Freellmpool/CrewAI
 
-## 🎯 1. Resumen y Estado Actual del Desarrollo
-- **Propósito**: Aplicación ligera y eficiente para el seguimiento de carteras de inversión y acciones (*Portfolio Stock Tracker*), integrada con Google Sheets como base de datos en la nube y un bot de Telegram para notificaciones y comandos interactivos.
-- **Frontend**: HTML5 / CSS3 / Vanilla JavaScript modular, diseñado para renderizar gráficos de evolución en tiempo real y tablas de rendimiento.
-- **Backend / Integración**: 
-  - Scripts en JavaScript (Google Apps Script / Node.js) para sincronización con **Google Sheets**.
-  - **Telegram Bot API** para alertas automatizadas y comandos de consulta de portfolio.
-  - **LiteLLM Proxy Local** (puerto `4000`) conectado a modelos de OpenRouter (`openrouter/deepseek/deepseek-chat`) con enrutamiento resiliente y control de tokens de prompt.
+## 🎯 1. Estado funcional verificado
+- **Aplicación web**: `index.html` carga datos desde FastAPI y muestra el portfolio.
+- **Backend**: `app/main.py` expone portfolio en tiempo real, memoria, chat y agencia; `main.py` mantiene compatibilidad con `uvicorn main:app`.
+- **Datos locales**: `portfolio.json` es la fuente actual del portfolio.
+- **Gateway IA**: Freellmpool local en `http://127.0.0.1:8080/v1`.
+- **Memoria**: persistencia JSONL local y recuperable.
+- **Agencia**: tres perfiles (`analyst`, `architect`, `optimizer`) con `crewai.LLM` conectado a Freellmpool.
 
----
+## 🧱 2. Reglas de arquitectura
+1. **Separación de responsabilidades**:
+   - Datos/API: `app/freellmpool_client.py`, `app/agent_memory.py`, `app/session_manager.py`.
+   - Lógica de negocio: `app/agency.py` y cálculos del portfolio.
+   - Presentación: `index.html` y módulos JS cuando se reorganice el frontend.
+   - Backend: `app/main.py`; no incluir llamadas de red inline en los endpoints.
+2. **Configuración**: secretos en el entorno global `E:\Proyectos\ai-workstation\.env`; un `.env` local puede sobrescribir prioridades y no se versiona.
+3. **Arranque**: usar `start-all.bat`/`start-all.ps1`; nunca scripts que maten todos los procesos Python.
+4. **Errores**: capturar excepciones, registrar logs útiles y devolver errores descriptivos.
+5. **Rate limits**: reintentos exponenciales y rotación/fallback para HTTP 402/429 y fallos de red.
 
-## 🏗️ 2. Normas Estrictas de Arquitectura, Modularidad y Manejo de Errores
+## 🛡️ 3. Validación y limitaciones
+- [x] Arranque conjunto y health checks de FastAPI/Freellmpool.
+- [x] Persistencia de memoria mediante API.
+- [x] Chat real mediante Freellmpool.
+- [x] Agencia en modo directo.
+- [ ] Tool-calling/Crew completo: bloqueado por proveedores actuales sin candidatos compatibles.
+- [ ] Google Sheets: pendiente.
+- [ ] Telegram Bot: pendiente.
+- [ ] Docker: pendiente; Docker no está instalado en la máquina validada.
 
-### 🧱 A. Reglas de Modularidad
-1. **Separación de Responsabilidades (SoC)**:
-   - **Capa de Datos**: Toda la lógica de conexión con Google Sheets y llamadas a APIs externas debe estar aislada en módulos independientes (`api.js` / `sheetsService.js`).
-   - **Capa de Lógica de Negocio**: Cálculos financieros, rentabilidades, P&L y procesamiento de carteras deben residir en módulos puramente funcionales libres de dependencias DOM.
-   - **Capa de Presentación (UI)**: Manipulación del DOM y renderizado gráfico estrictamente desacoplados en componentes de interfaz (`ui.js`).
-2. **Modularidad Estricta en JavaScript**:
-   - Uso de módulos ES6 (`import` / `export`) para evitar contaminación del ámbito global.
-   - Prohibido el uso de scripts monolíticos superiores a 300 líneas por archivo.
-
-### 🛡️ B. Normas Estrictas de Manejo de Errores
-1. **Captura Robusta (Try/Catch & Async/Await)**:
-   - Toda operación asíncrona (fetch, llamadas a Google Sheets, peticiones al Bot de Telegram o LiteLLM) debe envolverse en bloques `try/catch` con tipado de errores descriptivo.
-2. **Resiliencia ante Fallos de Red / Rate Limits (HTTP 429 / 402)**:
-   - Implementación obligatoria de reintentos con espera exponencial (*exponential backoff*) y fallback automático configurado en el proxy LiteLLM (`simple-shuffle`).
-3. **Feedback Visual y Logs**:
-   - Ningún error debe ser silencioso (`console.log` vacío). Todo error crítico debe mostrar notificaciones claras en la UI para el usuario y registrar logs estructurados con marca de tiempo.
-
----
-
-## 🗺️ 3. Plan de Tareas Pendientes (Roadmap)
-
-- [x] **Fase 1**: Configuración del entorno base, proxy LiteLLM y validación E2E de modelos en OpenRouter.
-- [ ] **Fase 2**: Desarrollo del módulo cliente de Google Sheets (conexión, lectura y escritura de transacciones y precios de activos).
-- [ ] **Fase 3**: Implementación de la interfaz web frontend (HTML/JS) para el dashboard de portfolio y gráficos de evolución de activos.
-- [ ] **Fase 4**: Desarrollo e integración del Bot de Telegram para alertas de precios y comandos de resumen de portfolio.
-- [ ] **Fase 5**: Pruebas de integración end-to-end (Frontend <-> Google Sheets <-> Telegram Bot <-> IA LiteLLM).
+## 🗺️ 4. Próximas tareas
+1. Actualizar `index.html` a módulos ES6 si se mantiene la regla de 300 líneas.
+2. Implementar y probar Google Sheets y Telegram de forma independiente.
+3. Migrar `google.generativeai` a `google-genai` y revisar Python 3.12+.
+4. Verificar Docker cuando esté instalado; el compose actual conserva datos de portfolio en un volumen.
+5. Ampliar tests de arranque y persistencia con proveedores simulados.

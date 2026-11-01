@@ -9,7 +9,8 @@ services:
     env_file:
       - .env
     volumes:
-      - .:/app
+      - ./portfolio.json:/app/portfolio.json
+      - portfolio-data:/app/storage
     restart: unless-stopped
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
@@ -28,3 +29,4 @@ services:
 
 volumes:
   chroma-data:
+  portfolio-data:
