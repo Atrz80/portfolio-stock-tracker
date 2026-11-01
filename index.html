@@ -75,7 +75,7 @@
                 <div class="bg-gray-900 border border-gray-800 p-5 rounded-2xl shadow-sm">
                     <p class="text-xs text-gray-400 font-medium uppercase">Valor Total del Portfolio</p>
                     <h3 id="total-val" class="text-2xl font-extrabold mt-1 text-white">0,00 €</h3>
-                    <span class="text-xs text-emerald-400 mt-2 inline-block"><i class="fa-solid fa-arrow-trend-up"></i> En vivo</span>
+                    <span id="market-source-status" class="text-xs text-gray-400 mt-2 inline-block">Conectando con Yahoo Finance…</span>
                 </div>
                 <div class="bg-gray-900 border border-gray-800 p-5 rounded-2xl shadow-sm">
                     <p class="text-xs text-gray-400 font-medium uppercase">Ganancia / Pérdida Total</p>
@@ -156,101 +156,75 @@
         }
 
         async function refreshData() {
+            const tbody = document.getElementById('portfolio-table-body');
+            const mobileList = document.getElementById('mobile-list');
+            const statusLabel = document.getElementById('market-source-status');
+
             try {
-                let response = await fetch('http://localhost:8000/api/portfolio/realtime').catch(() => null);
-                let stocks = [];
-                if (response && response.ok) {
-                    stocks = await response.json();
-                } else {
-                    stocks = [
-                        { symbol: "AAPL", name: "Apple Inc.", price: 182.50, change_percent: 1.25 },
-                        { symbol: "TSLA", name: "Tesla Inc.", price: 245.30, change_percent: -0.85 },
-                        { symbol: "GOOGL", name: "Alphabet Inc.", price: 141.20, change_percent: 0.45 },
-                        { symbol: "BTC", name: "Bitcoin", price: 65420.00, change_percent: 3.10 }
-                    ];
+                const response = await fetch('/api/portfolio/realtime', { cache: 'no-store' });
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.detail || `HTTP ${response.status}`);
                 }
 
-                let tbody = document.getElementById('portfolio-table-body');
-                let mobileList = document.getElementById('mobile-list');
-                let previousStocks = Array.from(tbody.querySelectorAll('tr'));
-                
-                // Add animation classes to table rows for visual feedback
-                setTimeout(() => {
-                    // For real-time API updates: Apply individual row blinking
-                    // If we got data from the realtime API, apply individual-row-update class
-                    if (response && response.ok) {
-                        // Real-time data update: individual row blinking
-                        setTimeout(() => {
-                            tbody.querySelectorAll('tr').forEach((row, index) => {
-                                row.classList.add('individual-row-update');
-                                setTimeout(() => row.classList.remove('individual-row-update'), 2000);
-                            });
-                            
-                            mobileList.querySelectorAll('div').forEach(card => {
-                                card.classList.add('metric-card-update');
-                                setTimeout(() => card.classList.remove('metric-card-update'), 800);
-                            });
-                        }, 50);
-                    } else {
-                        // Static data update: table row sliding
-                        tbody.querySelectorAll('tr').forEach(row => row.classList.add('table-row-update'));
-                        mobileList.querySelectorAll('div').forEach(card => card.classList.add('metric-card-update'));
-                        
-                        // Remove animation classes after animation completes
-                        setTimeout(() => {
-                            tbody.querySelectorAll('tr').forEach(row => row.classList.remove('table-row-update'));
-                            mobileList.querySelectorAll('div').forEach(card => card.classList.remove('metric-card-update'));
-                        }, 800);
-                    }
-                }, 100);
-                
+                const stocks = await response.json();
+                const totalValue = stocks.reduce((sum, stock) => sum + Number(stock.value || 0), 0);
+                const totalGain = stocks.reduce((sum, stock) => sum + Number(stock.gain || 0), 0);
+                const totalCost = totalValue - totalGain;
+                const totalGainPct = totalCost ? (totalGain / totalCost) * 100 : 0;
+
                 tbody.innerHTML = '';
                 mobileList.innerHTML = '';
 
-                let totalVal = 0;
-                stocks.forEach(s => {
-                    totalVal += s.price;
-                    let isPositive = s.change_percent >= 0;
-                    let colorClass = isPositive ? 'text-emerald-400' : 'text-rose-400';
-                    let icon = isPositive ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down';
+                stocks.forEach(stock => {
+                    const change = Number(stock.changePercent ?? 0);
+                    const isPositive = change >= 0;
+                    const colorClass = isPositive ? 'text-emerald-400' : 'text-rose-400';
+                    const icon = isPositive ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down';
+                    const marketPrice = `${Number(stock.marketPrice).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${stock.marketCurrency}`;
+                    const portfolioPrice = `${Number(stock.price).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} EUR`;
+                    const changeText = `${change > 0 ? '+' : ''}${change.toFixed(2)}%`;
+                    const quoteTime = stock.quoteTimestamp ? new Date(stock.quoteTimestamp).toLocaleString('es-ES') : 'sin timestamp';
 
                     tbody.innerHTML += `
                         <tr class="hover:bg-gray-950/40 transition">
-                            <td class="p-4 font-bold text-indigo-400">${s.symbol}</td>
-                            <td class="p-4 text-gray-300">${s.name}</td>
-                            <td class="p-4 font-semibold">$${s.price.toFixed(2)}</td>
-                            <td class="p-4 ${colorClass} font-medium"><i class="fa-solid ${icon} mr-1"></i> ${s.change_percent > 0 ? '+' : ''}${s.change_percent}%</td>
-                            <td class="p-4 text-right"><span class="px-2.5 py-1 bg-gray-800 text-xs rounded-lg text-gray-300">Activo</span></td>
+                            <td class="p-4 font-bold text-indigo-400">${stock.marketSymbol}</td>
+                            <td class="p-4 text-gray-300">${stock.name}<div class="text-xs text-gray-500 mt-1">${stock.ticker.split('•')[0].trim()} · ${stock.shares} uds.</div></td>
+                            <td class="p-4 font-semibold">${portfolioPrice}<div class="text-xs text-gray-500 mt-1">Mercado: ${marketPrice}</div></td>
+                            <td class="p-4 ${colorClass} font-medium"><i class="fa-solid ${icon} mr-1"></i> ${changeText}<div class="text-xs text-gray-500 mt-1">${quoteTime}</div></td>
+                            <td class="p-4 text-right"><span class="px-2.5 py-1 bg-gray-800 text-xs rounded-lg text-gray-300">${stock.dataSource}</span></td>
                         </tr>
                     `;
 
                     mobileList.innerHTML += `
                         <div class="bg-gray-900 border border-gray-800 p-3 rounded-xl flex justify-between items-center text-xs">
                             <div>
-                                <span class="font-bold text-indigo-400">${s.symbol}</span>
-                                <p class="text-gray-400">${s.name}</p>
+                                <p class="font-bold text-indigo-400">${stock.marketSymbol}</p>
+                                <p class="text-gray-400">${stock.name}</p>
+                                <p class="text-gray-500 mt-1">Mercado: ${marketPrice}</p>
                             </div>
                             <div class="text-right">
-                                <span class="font-semibold">$${s.price.toFixed(2)}</span>
-                                <p class="${colorClass}">${s.change_percent > 0 ? '+' : ''}${s.change_percent}%</p>
+                                <p class="font-semibold">${portfolioPrice}</p>
+                                <p class="${colorClass}">${changeText}</p>
                             </div>
                         </div>
                     `;
                 });
 
-                document.getElementById('total-val').innerText = `$${totalVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-                document.getElementById('total-val').classList.add('total-value-update');
-                document.getElementById('mobile-total').innerText = `$${totalVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-                
-                setTimeout(() => {
-                    document.getElementById('total-val').classList.remove('total-value-update');
-                }, 1000);
-                document.getElementById('total-pl').innerText = `+$${(totalVal * 0.05).toFixed(2)}`;
-                document.getElementById('total-pl-pct').className = "text-xs mt-2 inline-block font-semibold text-emerald-400";
-                document.getElementById('total-pl-pct').innerHTML = `<i class="fa-solid fa-arrow-trend-up"></i> +5.00%`;
-
+                const currency = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
+                document.getElementById('total-val').innerText = currency.format(totalValue);
+                document.getElementById('mobile-total').innerText = currency.format(totalValue);
+                document.getElementById('total-pl').innerText = currency.format(totalGain);
+                document.getElementById('total-pl').className = `text-2xl font-extrabold mt-1 ${totalGain >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+                document.getElementById('total-pl-pct').innerText = `${totalGainPct >= 0 ? '+' : ''}${totalGainPct.toFixed(2)}%`;
+                document.getElementById('total-assets').innerText = stocks.length;
+                statusLabel.innerText = `Yahoo Finance · ${new Date().toLocaleTimeString('es-ES')}`;
+                statusLabel.className = 'text-xs text-emerald-400 mt-2 inline-block';
             } catch (err) {
-                console.error("Error al actualizar datos:", err);
+                console.error('Error al obtener datos reales de mercado:', err);
+                statusLabel.innerText = `Error de mercado: ${err.message}`;
+                statusLabel.className = 'text-xs text-rose-400 mt-2 inline-block';
+                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-rose-400">No se pudieron obtener cotizaciones reales: ${err.message}</td></tr>`;
             }
         }
 

@@ -12,15 +12,39 @@ $env:PYTHONUTF8 = '1'
 $WorkDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $LogDir = Join-Path $WorkDir 'logs'
 $ManifestPath = Join-Path $WorkDir '.services.json'
-$LocalPython = Join-Path $WorkDir '.venv\Scripts\python.exe'
 $GlobalHome = if ($env:AI_WORKSTATION_HOME) { $env:AI_WORKSTATION_HOME } else { 'E:\Proyectos\ai-workstation' }
-$GlobalPython = Join-Path $GlobalHome '.venv\Scripts\python.exe'
-$Python = if (Test-Path -LiteralPath $LocalPython) {
-    $LocalPython
-} elseif (Test-Path -LiteralPath $GlobalPython) {
-    $GlobalPython
-} else {
-    (Get-Command python -ErrorAction Stop).Source
+$RuntimeRoot = Join-Path $GlobalHome 'runtime'
+$Python = Join-Path $RuntimeRoot 'venv\Scripts\python.exe'
+$Freellmpool = Join-Path $RuntimeRoot 'venv\Scripts\freellmpool.exe'
+$GlobalEnv = Join-Path $GlobalHome '.env'
+
+if (-not (Test-Path -LiteralPath $GlobalEnv)) {
+    throw "No se encontró la configuración global de IA: $GlobalEnv"
+}
+if (-not (Test-Path -LiteralPath $Python)) {
+    throw "No se encontró el runtime Python global en E: $Python"
+}
+if (-not (Test-Path -LiteralPath $Freellmpool)) {
+    throw "No se encontró Freellmpool en el runtime global de E: $Freellmpool"
+}
+
+# Load the shared AI configuration into this process without printing secrets.
+Get-Content -LiteralPath $GlobalEnv -Encoding UTF8 | ForEach-Object {
+    $line = $_.Trim()
+    if ($line -and -not $line.StartsWith('#') -and $line.Contains('=')) {
+        $name, $value = $line.Split('=', 2)
+        $name = $name.Trim()
+        if ($name -match '^[A-Za-z_][A-Za-z0-9_]*$') {
+            $cleanValue = $value.Trim()
+            if ($cleanValue.Length -ge 2 -and (
+                ($cleanValue.StartsWith('"') -and $cleanValue.EndsWith('"')) -or
+                ($cleanValue.StartsWith("'") -and $cleanValue.EndsWith("'"))
+            )) {
+                $cleanValue = $cleanValue.Substring(1, $cleanValue.Length - 2)
+            }
+            Set-Item -Path "Env:$name" -Value $cleanValue
+        }
+    }
 }
 
 New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
@@ -64,8 +88,9 @@ function Save-Manifest {
     $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $ManifestPath -Encoding UTF8
 }
 
-if (-not (Test-Path $Python) -and -not (Get-Command $Python -ErrorAction SilentlyContinue)) {
-    throw "No se encontró Python. Crea .venv, instala el entorno global o usa Python del sistema."
+$freellmpoolCommand = Get-Command $Freellmpool -ErrorAction SilentlyContinue
+if (-not $freellmpoolCommand) {
+    throw "No se encontró Freellmpool en el runtime global de E: $Freellmpool"
 }
 
 if (Test-Path $ManifestPath) {
@@ -77,11 +102,6 @@ if (Test-PortListening -Port $GatewayPort) {
 }
 if (Test-PortListening -Port $ApiPort) {
     throw "El puerto $ApiPort ya está ocupado. Detén el servicio existente antes de continuar."
-}
-
-$freellmpoolCommand = Get-Command 'freellmpool' -ErrorAction SilentlyContinue
-if (-not $freellmpoolCommand) {
-    throw "No se encontró el comando 'freellmpool' en PATH."
 }
 
 $services = @()

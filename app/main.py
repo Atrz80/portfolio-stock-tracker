@@ -1,29 +1,21 @@
 import os
 import json
-import random
 from pathlib import Path
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from google import generativeai as genai
 from .config import load_configuration
-
-try:
-    import yfinance as yf
-    import pandas as pd
-    YFINANCE_AVAILABLE = True
-    print("yfinance & pandas imported successfully")
-except ImportError:
-    YFINANCE_AVAILABLE = False
-    print("yfinance not available")
+from .market_data import MarketDataError, market_data_client
 
 load_configuration()
 api_key = os.getenv("GOOGLE_API_KEY")
 if api_key:
     genai.configure(api_key=api_key)
 
-app = FastAPI(title="Portfolio Stock Tracker & Live Web API", version="2.1.0")
+app = FastAPI(title="Portfolio Stock Tracker & Live Web API", version="2.2.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -49,7 +41,18 @@ class StockPosition(BaseModel):
 
 @app.get("/")
 def read_root():
-    return {"status": "online", "yfinance_active": YFINANCE_AVAILABLE}
+    return {
+        "status": "online",
+        "market_data_source": "Yahoo Finance",
+        "market_data_mode": "real",
+        "portfolio_currency": "EUR",
+        "dashboard": "/dashboard",
+    }
+
+
+@app.get("/dashboard", include_in_schema=False)
+def dashboard():
+    return FileResponse(PROJECT_ROOT / "index.html")
 
 @app.get("/api/portfolio", response_model=List[StockPosition])
 def get_portfolio():
@@ -62,67 +65,92 @@ def save_portfolio(positions: List[StockPosition]):
     return {"status": "success"}
 
 YAHOO_TICKER_MAP = {
-    "IE00BK5BQT80": "VWCE.DE",
-    "IE000I8KRLL9": "IS3N.DE",
-    "LU1829221024": "PUST.PA",
+    "IE00BK5BQT80": "VWRA.L",
+    "IE000I8KRLL9": "SEMI.AS",
+    "LU1829221024": "UST.PA",
     "IE00BKM4GZ66": "EIMI.L",
     "JP3733000008": "6701.T",
     "JP3419400001": "4204.T",
     "IE00B4RFH31": "IUSN.DE",
-    "JP3379550001": "5020.T"
+    "JP3379550001": "5016.T",
 }
+
+
+def _position_isin(item: dict) -> str:
+    return str(item.get("ticker", "")).split("•")[0].strip()
+
+
+def _position_symbol(item: dict) -> str:
+    isin = _position_isin(item)
+    symbol = YAHOO_TICKER_MAP.get(isin)
+    if not symbol:
+        raise MarketDataError(f"No existe un ticker de mercado configurado para {isin}")
+    return symbol
+
+
+def _calculate_realtime_position(item: dict) -> dict:
+    symbol = _position_symbol(item)
+    quote = market_data_client.get_quote(symbol)
+    fx_to_eur = market_data_client.get_fx_rate(quote.currency)
+    price_eur = quote.price * fx_to_eur
+
+    shares = float(item["shares"])
+    new_value = price_eur * shares
+    stored_price_eur = float(item["price"])
+    stored_gain = float(item.get("gain", 0.0))
+    initial_cost = stored_price_eur * shares - stored_gain
+    new_gain = new_value - initial_cost
+    new_gain_pct = (new_gain / initial_cost * 100) if initial_cost else 0.0
+
+    result = dict(item)
+    result.update(
+        {
+            "price": round(price_eur, 4),
+            "value": round(new_value, 2),
+            "gain": round(new_gain, 2),
+            "gainPct": round(new_gain_pct, 2),
+            "marketSymbol": symbol,
+            "marketPrice": round(quote.price, 4),
+            "marketCurrency": quote.currency,
+            "previousClose": quote.previous_close,
+            "changePercent": quote.change_percent,
+            "quoteTimestamp": quote.timestamp_iso,
+            "dataSource": quote.source,
+            "dataStatus": "real",
+        }
+    )
+    return result
+
 
 @app.get("/api/portfolio/realtime")
 def get_realtime_portfolio():
     data = load_portfolio_data()
-    updated_items = []
-    if not YFINANCE_AVAILABLE:
-        return simulate_realtime_portfolio(data)
     try:
-        yahoo_symbols = [YAHOO_TICKER_MAP.get(item["ticker"].split()[0], item["ticker"].split()[0]) for item in data]
-        market_data = yf.download(yahoo_symbols, period="1d", progress=False, group_by="ticker")
-        for item in data:
-            raw_ticker = item["ticker"].split()[0]
-            yf_symbol = YAHOO_TICKER_MAP.get(raw_ticker, raw_ticker)
-            current_price = item["price"]
-            try:
-                close_series = market_data['Close'] if len(yahoo_symbols) == 1 else (market_data[yf_symbol]['Close'] if yf_symbol in market_data else market_data['Close'][yf_symbol])
-                if not close_series.empty:
-                    val = float(close_series.iloc[-1])
-                    if val > 0:
-                        current_price = round(val, 2)
-            except:
-                variation = random.uniform(-0.8, 0.8)
-                current_price = round(item["price"] * (1 + variation / 100), 2)
-            new_value = round(current_price * item["shares"], 2)
-            initial_cost = item["price"] * item["shares"] - item["gain"]
-            new_gain = round(new_value - initial_cost, 2) if initial_cost > 0 else round(new_value - (item["shares"] * current_price * (1 - item["gainPct"]/100)), 2)
-            new_gain_pct = round((new_gain / (new_value - new_gain)) * 100, 2) if (new_value - new_gain) > 0 else item["gainPct"]
-            item_copy = item.copy()
-            item_copy["price"] = current_price
-            item_copy["value"] = new_value
-            item_copy["gain"] = new_gain
-            item_copy["gainPct"] = new_gain_pct
-            updated_items.append(item_copy)
-    except Exception as e:
-        return simulate_realtime_portfolio(data)
+        updated_items = [_calculate_realtime_position(item) for item in data]
+    except MarketDataError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    total_value = sum(float(item["value"]) for item in updated_items)
+    total_cost = sum(
+        float(item["price"]) * float(item["shares"]) - float(item.get("gain", 0.0))
+        for item in data
+    )
+    for item in updated_items:
+        item["allocation"] = round(float(item["value"]) / total_value * 100, 2) if total_value else 0.0
+
     return updated_items
 
-def simulate_realtime_portfolio(data):
-    updated_items = []
-    for item in data:
-        variation = random.uniform(-0.8, 0.8)
-        new_price = round(item["price"] * (1 + variation / 100), 2)
-        new_value = round(new_price * item["shares"], 2)
-        new_gain = round(item["gain"] + (new_value - item["value"]), 2)
-        new_gain_pct = round(item["gainPct"] + (variation * 0.5), 2)
-        item_copy = item.copy()
-        item_copy["price"] = new_price
-        item_copy["value"] = new_value
-        item_copy["gain"] = new_gain
-        item_copy["gainPct"] = new_gain_pct
-        updated_items.append(item_copy)
-    return updated_items
+
+@app.get("/api/market/status")
+def get_market_status():
+    return {
+        "status": "online",
+        "provider": "Yahoo Finance",
+        "endpoint": "/v8/finance/chart",
+        "mode": "real",
+        "cache_seconds": market_data_client.cache_seconds,
+        "portfolio_currency": "EUR",
+    }
 
 from .agent_memory import remember, recall
 from .agency import run_agency_task

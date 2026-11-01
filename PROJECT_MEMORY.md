@@ -4,6 +4,7 @@
 - **Aplicación web**: `index.html` carga datos desde FastAPI y muestra el portfolio.
 - **Backend**: `app/main.py` expone portfolio en tiempo real, memoria, chat y agencia; `main.py` mantiene compatibilidad con `uvicorn main:app`.
 - **Datos locales**: `portfolio.json` es la fuente actual del portfolio.
+- **Datos de mercado**: Yahoo Finance Chart API pública (`/v8/finance/chart`), sin clave; precios, moneda, timestamp y cierre anterior reales. Las posiciones se convierten a EUR con cotizaciones FX reales.
 - **Gateway IA**: Freellmpool local en `http://127.0.0.1:8080/v1`.
 - **Memoria**: persistencia JSONL local y recuperable.
 - **Agencia**: tres perfiles (`analyst`, `architect`, `optimizer`) con `crewai.LLM` conectado a Freellmpool.
@@ -15,9 +16,11 @@
    - Presentación: `index.html` y módulos JS cuando se reorganice el frontend.
    - Backend: `app/main.py`; no incluir llamadas de red inline en los endpoints.
 2. **Configuración**: secretos en el entorno global `E:\Proyectos\ai-workstation\.env`; un `.env` local puede sobrescribir prioridades y no se versiona.
-3. **Arranque**: usar `start-all.bat`/`start-all.ps1`; nunca scripts que maten todos los procesos Python.
-4. **Errores**: capturar excepciones, registrar logs útiles y devolver errores descriptivos.
-5. **Rate limits**: reintentos exponenciales y rotación/fallback para HTTP 402/429 y fallos de red.
+3. **Runtime**: Python y Freellmpool se ejecutan exclusivamente desde `E:\Proyectos\ai-workstation\runtime\venv`.
+4. **Arranque**: usar `start-all.bat`/`start-all.ps1`; nunca scripts que maten todos los procesos Python.
+5. **Errores**: capturar excepciones, registrar logs útiles y devolver errores descriptivos.
+6. **Datos reales**: nunca simular precios de mercado; un fallo del proveedor debe producir un error explícito.
+7. **Rate limits**: reintentos exponenciales y rotación/fallback para HTTP 402/429 y fallos de red.
 
 ## 🛡️ 3. Validación y limitaciones
 - [x] Arranque conjunto y health checks de FastAPI/Freellmpool.

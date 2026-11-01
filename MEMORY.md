@@ -26,16 +26,21 @@ Aplicación de seguimiento de portfolio con frontend web, backend FastAPI, memor
 - [x] Compilación de módulos principales con Python 3.11.9.
 - [x] Reorganización del repositorio en `app/`, `tests/`, `scripts/` y `docs/` sin romper `uvicorn main:app`.
 - [x] Rutas de portfolio, memoria y sesiones ancladas a la raíz del proyecto, independientes del directorio de trabajo.
-- [x] 3 pruebas `unittest` aisladas superadas: memoria, fallback HTTP 429 y endpoints con servicios simulados.
+- [x] 7 pruebas `unittest` aisladas superadas con Python de `E:`: memoria, fallback HTTP 429, endpoints, cliente de mercado, conversión a EUR, fallo 503 sin simulación y cobertura ISIN/ticker.
 - [x] Proyecto trasladado a su ubicación canónica bajo `E:\Proyectos`, con remoto GitHub preservado.
 - [x] Configuración global de IA separada en `E:\Proyectos\ai-workstation`; el proyecto carga el `.env` global sin duplicar secretos.
 - [x] Variables globales instaladas en el entorno de usuario de Windows.
+- [x] Runtime global instalado en `E:\Proyectos\ai-workstation\runtime`: Python 3.11, uv, FastAPI, CrewAI y Freellmpool; los procesos del proyecto se ejecutan desde binarios de `E:`.
+- [x] Datos del dashboard obtenidos en tiempo real desde la API pública `/v8/finance/chart` de Yahoo Finance, con ticker, moneda, timestamp, cierre anterior y conversión real a EUR.
+- [x] Eliminado el fallback aleatorio: si la fuente real falla, la API devuelve HTTP 503 y el dashboard informa del error.
+- [x] Tickers ISIN verificados: `VWRA.L`, `SEMI.AS`, `UST.PA`, `EIMI.L`, `6701.T`, `4204.T`, `IUSN.DE` y `5016.T`.
+- [x] E2E validado: FastAPI `:8000`, Freellmpool `:8080`, dashboard, 8 posiciones de mercado y chat real (`OK`).
 - [x] `.clinerules` eliminado del proyecto: las reglas globales viven solo en `E:\Proyectos\ai-workstation\.clinerules`.
 
 ## ⚠️ Limitaciones y pendientes
 - Docker no está instalado en este equipo; `docker-compose.yml` no se pudo ejecutar. Su volumen se corrigió para no ocultar el paquete `app/` y los datos de portfolio usan un volumen persistente.
 - Los proveedores disponibles no admiten tool-calling de forma fiable; `CREWAI_AGENCY_MODE=crew` puede devolver HTTP 503 del gateway. El modo directo es el predeterminado.
-- El contenido de la copia temporal del workspace C: fue eliminado tras validar el destino; no queda una segunda copia del código. La carpeta raíz vacía puede tardar en eliminarse si la terminal de Cline mantiene abierto su handle.
+- El contenido de la copia temporal del workspace C: fue eliminado tras validar el destino; no queda una segunda copia del código.
 - `scripts/archive/` contiene generadores históricos no usados; uno (`generate_dashboard.py`) conserva un error de indentación preexistente y queda fuera de la compilación productiva.
 - Google Sheets, Telegram y Docker siguen siendo trabajo pendiente/por verificar; no deben considerarse implementados solo por la documentación antigua.
 - `google.generativeai` está en desuso y emite avisos; migrar a `google-genai` es una mejora futura.

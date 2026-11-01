@@ -7,5 +7,3 @@ python-dotenv
 pydantic-settings
 requests
 google-generativeai
-yfinance
-pandas

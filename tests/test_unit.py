@@ -1,13 +1,14 @@
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from fastapi.testclient import TestClient
 
 from app import main as main_module
 from app.agent_memory import recall, remember
 from app.freellmpool_client import FreellmpoolClient
+from app.market_data import MarketDataError, Quote, YahooMarketDataClient
 
 
 class ApplicationUnitTests(unittest.TestCase):
@@ -58,6 +59,96 @@ class ApplicationUnitTests(unittest.TestCase):
             self.assertEqual(client.post("/memory/recall", json={"query": "dato"}).json()["results"][0]["text"], "recuerdo")
             self.assertEqual(client.post("/chat", json={"message": "hola"}).json()["response"], "respuesta: hola")
             self.assertEqual(client.post("/agency/run", json={"objective": "analizar"}).json()["result"], "analizar")
+
+    def test_market_client_parses_real_yahoo_response(self):
+        response = Mock()
+        response.status_code = 200
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "chart": {
+                "result": [
+                    {
+                        "meta": {
+                            "regularMarketPrice": 123.45,
+                            "currency": "EUR",
+                            "regularMarketTime": 1_700_000_000,
+                        },
+                        "indicators": {"quote": [{"close": [120.0, 123.45]}]},
+                    }
+                ],
+                "error": None,
+            }
+        }
+
+        with patch("app.market_data.requests.get", return_value=response):
+            quote = YahooMarketDataClient(max_retries=0).get_quote("TEST.AS")
+
+        self.assertEqual(quote.price, 123.45)
+        self.assertEqual(quote.previous_close, 120.0)
+        self.assertEqual(quote.currency, "EUR")
+        self.assertAlmostEqual(quote.change_percent, 2.88, places=2)
+
+    def test_realtime_portfolio_uses_real_quote_and_converts_to_eur(self):
+        position = {
+            "name": "Test ETF",
+            "ticker": "IE00BK5BQT80 • TEST",
+            "shares": 2,
+            "price": 100.0,
+            "value": 200.0,
+            "gain": 0.0,
+            "gainPct": 0.0,
+            "allocation": 100.0,
+            "badge": "test",
+            "init": "T",
+        }
+        quote = Quote(
+            symbol="VWRA.L",
+            price=110.0,
+            previous_close=100.0,
+            currency="USD",
+            timestamp=1_700_000_000,
+        )
+        with patch.object(main_module, "load_portfolio_data", return_value=[position]), patch.object(
+            main_module.market_data_client, "get_quote", return_value=quote
+        ), patch.object(main_module.market_data_client, "get_fx_rate", return_value=0.8):
+            result = main_module.get_realtime_portfolio()
+
+        self.assertEqual(result[0]["dataStatus"], "real")
+        self.assertEqual(result[0]["marketPrice"], 110.0)
+        self.assertEqual(result[0]["marketCurrency"], "USD")
+        self.assertEqual(result[0]["price"], 88.0)
+        self.assertEqual(result[0]["value"], 176.0)
+        self.assertEqual(result[0]["changePercent"], 10.0)
+
+    def test_realtime_portfolio_returns_503_without_simulated_prices(self):
+        position = {
+            "name": "Test ETF",
+            "ticker": "IE00BK5BQT80 • TEST",
+            "shares": 2,
+            "price": 100.0,
+            "value": 200.0,
+            "gain": 0.0,
+            "gainPct": 0.0,
+            "allocation": 100.0,
+            "badge": "test",
+            "init": "T",
+        }
+        with patch.object(main_module, "load_portfolio_data", return_value=[position]), patch.object(
+            main_module.market_data_client,
+            "get_quote",
+            side_effect=MarketDataError("fuera de servicio"),
+        ):
+            with self.assertRaises(main_module.HTTPException) as context:
+                main_module.get_realtime_portfolio()
+
+        self.assertEqual(context.exception.status_code, 503)
+        self.assertIn("fuera de servicio", context.exception.detail)
+
+    def test_portfolio_isins_have_market_symbols(self):
+        for item in main_module.load_portfolio_data():
+            isin = main_module._position_isin(item)
+            self.assertIn(isin, main_module.YAHOO_TICKER_MAP)
+            self.assertTrue(main_module.YAHOO_TICKER_MAP[isin])
 
 
 if __name__ == "__main__":
