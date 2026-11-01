@@ -7,7 +7,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
-        .phone-frame { width: 380px; height: 780px; background: #111827; border: 12px solid #1f2937; border-radius: 40px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); overflow: hidden; display: flex; flex-direction: column; position: relative; margin: 0 auto; }
+        .phone-frame { width: min(380px, 100%); height: min(780px, calc(100dvh - 160px)); box-sizing: border-box; background: #111827; border: 12px solid #1f2937; border-radius: 40px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); overflow: hidden; display: flex; flex-direction: column; position: relative; margin: 0 auto; }
         .phone-screen { flex: 1; overflow-y: auto; background: #0b0f19; color: #f3f4f6; padding: 16px; }
         .phone-notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 140px; height: 22px; background: #1f2937; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; z-index: 50; }
         
@@ -51,6 +51,12 @@
             animation: pulse-highlight 1s ease-out;
             text-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
         }
+
+        @media (max-width: 640px) {
+            main { padding: 1rem; }
+            header > div:last-child { width: 100%; }
+            #btn-desktop, #btn-mobile { flex: 1; }
+        }
     </style>
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col font-sans">
@@ -68,14 +74,38 @@
         </div>
     </header>
 
-    <main class="flex-1 p-6 flex justify-center items-center">
+    <main class="flex-1 p-6 flex justify-center items-start">
+        <div class="w-full max-w-7xl">
+            <section class="mb-6 bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-3">
+                <div class="flex flex-wrap items-center gap-3">
+                    <label for="market-provider" class="text-xs text-gray-400">Fuente de cotizaciones</label>
+                    <select id="market-provider" onchange="changeMarketProvider(this.value)" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs">
+                        <option value="yahoo">Yahoo Finance (push)</option>
+                        <option value="finnhub">Finnhub.io (actualización manual)</option>
+                    </select>
+                    <button id="refresh-prices" type="button" onclick="refreshData()" class="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-xs font-semibold rounded-lg border border-gray-700 transition">
+                        <i class="fa-solid fa-rotate mr-1"></i> Actualizar precios
+                    </button>
+                    <span id="market-source-status" role="status" class="text-xs text-gray-400">Conectando con Yahoo Finance…</span>
+                    <span id="provider-preference-warning" role="status" class="hidden text-xs text-amber-400"></span>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <label for="ticker-search" class="sr-only">Buscar en el catálogo local de tickers</label>
+                    <input id="ticker-search" type="search" oninput="searchTickers(this.value)" placeholder="Buscar ticker en catálogo local (USA)…" class="min-w-0 flex-1 bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-xs">
+                    <button id="refresh-catalog" type="button" onclick="refreshTickerCatalog()" class="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-xs font-semibold rounded-lg border border-gray-700 transition">
+                        <i class="fa-solid fa-database mr-1"></i> Actualizar catálogo
+                    </button>
+                    <span id="catalog-status" role="status" class="text-xs text-gray-500">Catálogo local vacío</span>
+                </div>
+                <div id="ticker-results" role="listbox" aria-label="Resultados del catálogo local" class="hidden max-h-40 overflow-y-auto bg-gray-950 border border-gray-700 rounded-lg p-2 text-xs"></div>
+            </section>
+
         <!-- Desktop View -->
         <div id="desktop-view" class="w-full max-w-7xl space-y-6">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div class="bg-gray-900 border border-gray-800 p-5 rounded-2xl shadow-sm">
                     <p class="text-xs text-gray-400 font-medium uppercase">Valor Total del Portfolio</p>
                     <h3 id="total-val" class="text-2xl font-extrabold mt-1 text-white">0,00 €</h3>
-                    <span id="market-source-status" class="text-xs text-gray-400 mt-2 inline-block">Conectando con Yahoo Finance…</span>
                 </div>
                 <div class="bg-gray-900 border border-gray-800 p-5 rounded-2xl shadow-sm">
                     <p class="text-xs text-gray-400 font-medium uppercase">Ganancia / Pérdida Total</p>
@@ -95,9 +125,8 @@
             </div>
 
             <div class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
-                <div class="p-5 border-b border-gray-800 flex justify-between items-center">
+                <div class="p-5 border-b border-gray-800 flex flex-wrap justify-between items-center gap-3">
                     <h3 class="font-bold text-lg"><i class="fa-solid fa-list mr-2 text-indigo-500"></i> Posiciones en Tiempo Real</h3>
-                    <button onclick="refreshData()" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-xs font-semibold rounded-lg border border-gray-700 transition"><i class="fa-solid fa-rotate mr-1"></i> Actualizar Precios</button>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
@@ -133,6 +162,7 @@
                 </div>
             </div>
         </div>
+        </div>
     </main>
 
     <script>
@@ -155,81 +185,317 @@
             }
         }
 
-        async function refreshData() {
+        const currencyFormatter = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
+        const providerStorageKey = 'portfolio.marketProvider';
+        const catalogStorageKey = 'portfolio.tickerCatalog.finnhub.US.v1';
+        const validProviders = new Set(['yahoo', 'finnhub']);
+        let currentProvider = 'yahoo';
+        let tickerCatalog = [];
+        let reconnectAttempts = 0;
+        let refreshGeneration = 0;
+        let reconnectTimer = null;
+        let marketSocket = null;
+
+        function quoteMarkup(stock) {
+            const change = Number(stock.changePercent ?? 0);
+            const isPositive = change >= 0;
+            const colorClass = isPositive ? 'text-emerald-400' : 'text-rose-400';
+            const icon = isPositive ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down';
+            const marketPrice = `${Number(stock.marketPrice).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${stock.marketCurrency}`;
+            const portfolioPrice = `${Number(stock.price).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} EUR`;
+            const changeText = `${change > 0 ? '+' : ''}${change.toFixed(2)}%`;
+            const quoteTime = stock.quoteTimestamp ? new Date(stock.quoteTimestamp).toLocaleString('es-ES') : 'sin timestamp';
+            const delivery = stock.dataStatus === 'realtime_push' ? 'push' : (stock.marketState && stock.marketState !== 'UNKNOWN' ? stock.marketState.toLowerCase() : 'snapshot');
+            const source = stock.dataSource || 'Yahoo Finance';
+            return { change, colorClass, icon, marketPrice, portfolioPrice, changeText, quoteTime, delivery: `${source} · ${delivery}` };
+        }
+
+        function desktopRow(stock) {
+            const view = quoteMarkup(stock);
+            return `
+                <tr data-symbol="${stock.marketSymbol}" class="hover:bg-gray-950/40 transition">
+                    <td class="p-4 font-bold text-indigo-400">${stock.marketSymbol}</td>
+                    <td class="p-4 text-gray-300">${stock.name}<div class="text-xs text-gray-500 mt-1">${stock.ticker.split('•')[0].trim()} · ${stock.shares} uds.</div></td>
+                    <td class="p-4 font-semibold"><span data-field="portfolio-price">${view.portfolioPrice}</span><div class="text-xs text-gray-500 mt-1">Mercado: <span data-field="market-price">${view.marketPrice}</span></div></td>
+                    <td class="p-4 ${view.colorClass} font-medium"><i class="fa-solid ${view.icon} mr-1"></i> <span data-field="change">${view.changeText}</span><div class="text-xs text-gray-500 mt-1"><span data-field="quote-time">${view.quoteTime}</span></div></td>
+                    <td class="p-4 text-right"><span data-field="delivery" class="px-2.5 py-1 bg-gray-800 text-xs rounded-lg text-gray-300">${view.delivery}</span></td>
+                </tr>
+            `;
+        }
+
+        function mobileCard(stock) {
+            const view = quoteMarkup(stock);
+            return `
+                <div data-symbol="${stock.marketSymbol}" class="bg-gray-900 border border-gray-800 p-3 rounded-xl flex justify-between items-center text-xs">
+                    <div>
+                        <p class="font-bold text-indigo-400">${stock.marketSymbol}</p>
+                        <p class="text-gray-400">${stock.name}</p>
+                        <p class="text-gray-500 mt-1">Mercado: <span data-field="market-price">${view.marketPrice}</span></p>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-semibold" data-field="portfolio-price">${view.portfolioPrice}</p>
+                        <p class="${view.colorClass}" data-field="change">${view.changeText}</p>
+                        <p class="text-gray-500 mt-1" data-field="delivery">${view.delivery}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateTotals(totals) {
+            if (!totals) return;
+            document.getElementById('total-val').innerText = currencyFormatter.format(totals.value);
+            document.getElementById('mobile-total').innerText = currencyFormatter.format(totals.value);
+            document.getElementById('total-pl').innerText = currencyFormatter.format(totals.gain);
+            document.getElementById('total-pl').className = `text-2xl font-extrabold mt-1 ${totals.gain >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+            document.getElementById('total-pl-pct').innerText = `${totals.gainPct >= 0 ? '+' : ''}${Number(totals.gainPct).toFixed(2)}%`;
+            document.getElementById('total-assets').innerText = totals.assets;
+        }
+
+        function updateSinglePosition(stock) {
+            const view = quoteMarkup(stock);
+            document.querySelectorAll(`[data-symbol="${CSS.escape(stock.marketSymbol)}"]`).forEach(element => {
+                const setText = (field, value) => {
+                    const target = element.querySelector(`[data-field="${field}"]`);
+                    if (target) target.textContent = value;
+                };
+                setText('portfolio-price', view.portfolioPrice);
+                setText('market-price', view.marketPrice);
+                setText('change', view.changeText);
+                setText('quote-time', view.quoteTime);
+                setText('delivery', view.delivery);
+                const changeCell = element.querySelector('[data-field="change"]')?.closest('td, p');
+                if (changeCell) {
+                    changeCell.classList.remove('text-emerald-400', 'text-rose-400');
+                    changeCell.classList.add(view.colorClass);
+                }
+                const icon = element.querySelector('i.fa-arrow-trend-up, i.fa-arrow-trend-down');
+                if (icon) {
+                    icon.classList.remove('fa-arrow-trend-up', 'fa-arrow-trend-down');
+                    icon.classList.add(view.icon);
+                }
+                element.classList.remove('individual-row-update');
+                void element.offsetWidth;
+                element.classList.add('individual-row-update');
+            });
+        }
+
+        function updateStreamStatus(health) {
+            if (currentProvider !== 'yahoo') return;
+            const statusLabel = document.getElementById('market-source-status');
+            if (!health) return;
+            const labels = {
+                connected: `Push conectado · ${health.last_event_age_seconds ?? 0}s desde el último tick`,
+                connecting: 'Conectando al push de mercado…',
+                disconnected: `Push desconectado · reintentando (${health.reconnect_attempts || 0})`,
+                stopped: 'Push detenido'
+            };
+            statusLabel.innerText = labels[health.state] || `Push: ${health.state}`;
+            statusLabel.className = `text-xs ${health.state === 'connected' ? 'text-emerald-400' : 'text-amber-400'}`;
+        }
+
+        function renderSnapshot(event) {
             const tbody = document.getElementById('portfolio-table-body');
             const mobileList = document.getElementById('mobile-list');
-            const statusLabel = document.getElementById('market-source-status');
+            tbody.innerHTML = event.positions.map(desktopRow).join('');
+            mobileList.innerHTML = event.positions.map(mobileCard).join('');
+            updateTotals(event.totals);
+            updateStreamStatus(event.health);
+        }
 
-            try {
-                const response = await fetch('/api/portfolio/realtime', { cache: 'no-store' });
-                if (!response.ok) {
-                    const error = await response.json().catch(() => ({}));
-                    throw new Error(error.detail || `HTTP ${response.status}`);
-                }
-
-                const stocks = await response.json();
-                const totalValue = stocks.reduce((sum, stock) => sum + Number(stock.value || 0), 0);
-                const totalGain = stocks.reduce((sum, stock) => sum + Number(stock.gain || 0), 0);
-                const totalCost = totalValue - totalGain;
-                const totalGainPct = totalCost ? (totalGain / totalCost) * 100 : 0;
-
-                tbody.innerHTML = '';
-                mobileList.innerHTML = '';
-
-                stocks.forEach(stock => {
-                    const change = Number(stock.changePercent ?? 0);
-                    const isPositive = change >= 0;
-                    const colorClass = isPositive ? 'text-emerald-400' : 'text-rose-400';
-                    const icon = isPositive ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down';
-                    const marketPrice = `${Number(stock.marketPrice).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${stock.marketCurrency}`;
-                    const portfolioPrice = `${Number(stock.price).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} EUR`;
-                    const changeText = `${change > 0 ? '+' : ''}${change.toFixed(2)}%`;
-                    const quoteTime = stock.quoteTimestamp ? new Date(stock.quoteTimestamp).toLocaleString('es-ES') : 'sin timestamp';
-
-                    tbody.innerHTML += `
-                        <tr class="hover:bg-gray-950/40 transition">
-                            <td class="p-4 font-bold text-indigo-400">${stock.marketSymbol}</td>
-                            <td class="p-4 text-gray-300">${stock.name}<div class="text-xs text-gray-500 mt-1">${stock.ticker.split('•')[0].trim()} · ${stock.shares} uds.</div></td>
-                            <td class="p-4 font-semibold">${portfolioPrice}<div class="text-xs text-gray-500 mt-1">Mercado: ${marketPrice}</div></td>
-                            <td class="p-4 ${colorClass} font-medium"><i class="fa-solid ${icon} mr-1"></i> ${changeText}<div class="text-xs text-gray-500 mt-1">${quoteTime}</div></td>
-                            <td class="p-4 text-right"><span class="px-2.5 py-1 bg-gray-800 text-xs rounded-lg text-gray-300">${stock.dataSource}</span></td>
-                        </tr>
-                    `;
-
-                    mobileList.innerHTML += `
-                        <div class="bg-gray-900 border border-gray-800 p-3 rounded-xl flex justify-between items-center text-xs">
-                            <div>
-                                <p class="font-bold text-indigo-400">${stock.marketSymbol}</p>
-                                <p class="text-gray-400">${stock.name}</p>
-                                <p class="text-gray-500 mt-1">Mercado: ${marketPrice}</p>
-                            </div>
-                            <div class="text-right">
-                                <p class="font-semibold">${portfolioPrice}</p>
-                                <p class="${colorClass}">${changeText}</p>
-                            </div>
-                        </div>
-                    `;
-                });
-
-                const currency = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
-                document.getElementById('total-val').innerText = currency.format(totalValue);
-                document.getElementById('mobile-total').innerText = currency.format(totalValue);
-                document.getElementById('total-pl').innerText = currency.format(totalGain);
-                document.getElementById('total-pl').className = `text-2xl font-extrabold mt-1 ${totalGain >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
-                document.getElementById('total-pl-pct').innerText = `${totalGainPct >= 0 ? '+' : ''}${totalGainPct.toFixed(2)}%`;
-                document.getElementById('total-assets').innerText = stocks.length;
-                statusLabel.innerText = `Yahoo Finance · ${new Date().toLocaleTimeString('es-ES')}`;
-                statusLabel.className = 'text-xs text-emerald-400 mt-2 inline-block';
-            } catch (err) {
-                console.error('Error al obtener datos reales de mercado:', err);
-                statusLabel.innerText = `Error de mercado: ${err.message}`;
-                statusLabel.className = 'text-xs text-rose-400 mt-2 inline-block';
-                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-rose-400">No se pudieron obtener cotizaciones reales: ${err.message}</td></tr>`;
+        function handleMarketEvent(event) {
+            if (currentProvider !== 'yahoo') return;
+            if (event.type === 'snapshot') {
+                renderSnapshot(event);
+            } else if (event.type === 'quote_update') {
+                updateSinglePosition(event.position);
+                updateTotals(event.totals);
+            } else if (event.type === 'stream_status') {
+                updateStreamStatus(event.health);
             }
         }
 
+        function connectMarketStream() {
+            if (currentProvider !== 'yahoo' || (marketSocket && marketSocket.readyState < WebSocket.CLOSING)) return;
+            clearTimeout(reconnectTimer);
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const socket = new WebSocket(`${protocol}//${window.location.host}/ws/market`);
+            marketSocket = socket;
+
+            socket.onopen = () => {
+                if (currentProvider !== 'yahoo') return;
+                reconnectAttempts = 0;
+                setMarketStatus('Push conectado · Yahoo Finance', 'success');
+            };
+            socket.onmessage = message => {
+                try {
+                    handleMarketEvent(JSON.parse(message.data));
+                } catch (error) {
+                    console.error('Evento de mercado inválido:', error);
+                }
+            };
+            socket.onerror = () => socket.close();
+            socket.onclose = () => {
+                if (marketSocket === socket) marketSocket = null;
+                if (currentProvider !== 'yahoo') return;
+                reconnectAttempts += 1;
+                const delay = Math.min(1000 * (2 ** Math.min(reconnectAttempts, 5)), 30000);
+                setMarketStatus(`Yahoo Finance desconectado · reintentando en ${Math.round(delay / 1000)}s`, 'warning');
+                reconnectTimer = setTimeout(connectMarketStream, delay);
+            };
+        }
+
+        function setMarketStatus(message, state = 'normal') {
+            const statusLabel = document.getElementById('market-source-status');
+            statusLabel.textContent = message;
+            const color = state === 'error' ? 'text-rose-400' : (state === 'success' ? 'text-emerald-400' : (state === 'warning' ? 'text-amber-400' : 'text-gray-400'));
+            statusLabel.className = `text-xs ${color}`;
+        }
+
+        function setProviderPreferenceWarning(message = '') {
+            const warning = document.getElementById('provider-preference-warning');
+            warning.textContent = message;
+            warning.classList.toggle('hidden', !message);
+        }
+
+        async function refreshData() {
+            const button = document.getElementById('refresh-prices');
+            const generation = ++refreshGeneration;
+            button.disabled = true;
+            setMarketStatus(`Consultando ${currentProvider === 'yahoo' ? 'Yahoo Finance' : 'Finnhub.io'}…`);
+            try {
+                const requestedProvider = currentProvider;
+                const response = await fetch(`/api/portfolio/realtime?provider=${encodeURIComponent(requestedProvider)}`);
+                const payload = await response.json();
+                if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
+                if (!Array.isArray(payload)) throw new Error('Respuesta de portfolio no válida');
+                if (generation !== refreshGeneration || requestedProvider !== currentProvider) return;
+
+                const gain = payload.reduce((sum, item) => sum + Number(item.gain || 0), 0);
+                const invested = payload.reduce((sum, item) => sum + Number(item.value || 0) - Number(item.gain || 0), 0);
+                renderSnapshot({
+                    positions: payload,
+                    totals: {
+                        value: payload.reduce((sum, item) => sum + Number(item.value || 0), 0),
+                        gain,
+                        gainPct: invested ? gain / invested * 100 : 0,
+                        assets: payload.length
+                    }
+                });
+                setMarketStatus(`${payload[0]?.dataSource || (currentProvider === 'yahoo' ? 'Yahoo Finance' : 'Finnhub.io')} actualizado · ${new Date().toLocaleTimeString('es-ES')}`, 'success');
+            } catch (error) {
+                if (generation !== refreshGeneration) return;
+                console.error('No se pudieron actualizar los precios:', error);
+                setMarketStatus(`Error al actualizar precios: ${error.message}`, 'error');
+            } finally {
+                if (generation === refreshGeneration) button.disabled = false;
+            }
+        }
+
+        function changeMarketProvider(provider) {
+            if (!validProviders.has(provider)) {
+                setMarketStatus('Fuente de cotizaciones no válida', 'error');
+                return;
+            }
+            currentProvider = provider;
+            try {
+                localStorage.setItem(providerStorageKey, provider);
+                setProviderPreferenceWarning();
+            } catch (error) {
+                console.error('No se pudo guardar la fuente seleccionada:', error);
+                setProviderPreferenceWarning('La fuente solo se conservará durante esta sesión');
+            }
+
+            if (provider === 'yahoo') {
+                connectMarketStream();
+            } else {
+                clearTimeout(reconnectTimer);
+                if (marketSocket && marketSocket.readyState < WebSocket.CLOSING) marketSocket.close();
+                setMarketStatus('Finnhub.io seleccionado · precios solo bajo demanda');
+            }
+            refreshData();
+        }
+
+        function readCachedCatalog() {
+            try {
+                const cached = localStorage.getItem(catalogStorageKey);
+                if (!cached) {
+                    document.getElementById('catalog-status').textContent = 'Catálogo local vacío · actualízalo manualmente';
+                    return;
+                }
+                const catalog = JSON.parse(cached);
+                if (!Array.isArray(catalog.symbols)) throw new Error('Formato de caché no válido');
+                tickerCatalog = catalog.symbols;
+                const updated = catalog.updated_at ? new Date(catalog.updated_at).toLocaleString('es-ES') : 'fecha desconocida';
+                document.getElementById('catalog-status').textContent = `${tickerCatalog.length.toLocaleString('es-ES')} tickers · ${updated}`;
+            } catch (error) {
+                console.error('No se pudo leer el catálogo local:', error);
+                document.getElementById('catalog-status').textContent = 'No se pudo leer la caché local; actualízala para reemplazarla';
+            }
+        }
+
+        function searchTickers(query) {
+            const results = document.getElementById('ticker-results');
+            const normalizedQuery = query.trim().toLocaleLowerCase('es');
+            results.replaceChildren();
+            if (!normalizedQuery) {
+                results.classList.add('hidden');
+                return;
+            }
+
+            const matches = tickerCatalog.filter(item =>
+                `${item.symbol} ${item.displaySymbol} ${item.description}`.toLocaleLowerCase('es').includes(normalizedQuery)
+            ).slice(0, 50);
+            if (!matches.length) {
+                results.textContent = tickerCatalog.length ? 'Sin coincidencias en la caché local.' : 'No hay catálogo local. Usa “Actualizar catálogo” para descargarlo.';
+            } else {
+                for (const item of matches) {
+                    const row = document.createElement('div');
+                    row.className = 'px-2 py-1.5 border-b border-gray-800 last:border-0';
+                    const symbol = document.createElement('strong');
+                    symbol.className = 'text-indigo-300';
+                    symbol.textContent = item.displaySymbol || item.symbol;
+                    const description = document.createElement('span');
+                    description.className = 'text-gray-400 ml-2';
+                    description.textContent = item.description || item.type || '';
+                    row.setAttribute('role', 'option');
+                    row.append(symbol, document.createTextNode(' — '), description);
+                    results.append(row);
+                }
+            }
+            results.classList.remove('hidden');
+        }
+
+        async function refreshTickerCatalog() {
+            const button = document.getElementById('refresh-catalog');
+            button.disabled = true;
+            document.getElementById('catalog-status').textContent = 'Descargando catálogo de Finnhub…';
+            try {
+                const response = await fetch('/api/catalog/refresh?exchange=US', { method: 'POST' });
+                const payload = await response.json();
+                if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
+                if (!Array.isArray(payload.symbols)) throw new Error('Respuesta de catálogo no válida');
+                localStorage.setItem(catalogStorageKey, JSON.stringify(payload));
+                readCachedCatalog();
+                searchTickers(document.getElementById('ticker-search').value);
+            } catch (error) {
+                console.error('No se pudo actualizar el catálogo Finnhub:', error);
+                document.getElementById('catalog-status').textContent = `Error al actualizar el catálogo: ${error.message}`;
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        try {
+            const savedProvider = localStorage.getItem(providerStorageKey);
+            if (validProviders.has(savedProvider)) currentProvider = savedProvider;
+        } catch (error) {
+            console.error('No se pudo leer la fuente guardada:', error);
+            setProviderPreferenceWarning('No se pudo leer la fuente guardada; se usará Yahoo Finance');
+        }
+        document.getElementById('market-provider').value = currentProvider;
+        readCachedCatalog();
+        if (currentProvider === 'yahoo') connectMarketStream();
         refreshData();
-        setInterval(refreshData, 5000);
     </script>
 </body>
 </html>

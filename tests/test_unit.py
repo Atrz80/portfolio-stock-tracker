@@ -1,3 +1,4 @@
+import asyncio
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,7 +9,15 @@ from fastapi.testclient import TestClient
 from app import main as main_module
 from app.agent_memory import recall, remember
 from app.freellmpool_client import FreellmpoolClient
+from app.finnhub_client import FinnhubMarketDataClient
+from app.market_agents import (
+    analyst_validate_tick,
+    architect_diagnose_connection,
+    optimizer_calculate_position,
+)
 from app.market_data import MarketDataError, Quote, YahooMarketDataClient
+from app.market_protocol import PricingData, decode_yahoo_pricing
+from app.market_stream import MarketStreamService
 
 
 class ApplicationUnitTests(unittest.TestCase):
@@ -49,7 +58,7 @@ class ApplicationUnitTests(unittest.TestCase):
         ), patch.object(
             main_module, "chat_with_memory", lambda message: f"respuesta: {message}"
         ), patch.object(
-            main_module, "run_agency_task", lambda objective: {"status": "success", "result": objective}
+            main_module, "run_agency_task", lambda objective, agent="analyst", mode=None: {"status": "success", "result": objective}
         ):
             client = TestClient(main_module.app)
 
@@ -59,6 +68,11 @@ class ApplicationUnitTests(unittest.TestCase):
             self.assertEqual(client.post("/memory/recall", json={"query": "dato"}).json()["results"][0]["text"], "recuerdo")
             self.assertEqual(client.post("/chat", json={"message": "hola"}).json()["response"], "respuesta: hola")
             self.assertEqual(client.post("/agency/run", json={"objective": "analizar"}).json()["result"], "analizar")
+            agency_result = client.post(
+                "/agency/run",
+                json={"objective": "revisar", "agente_tipo": "architect", "modo": "direct"},
+            ).json()
+            self.assertEqual(agency_result["result"], "revisar")
 
     def test_market_client_parses_real_yahoo_response(self):
         response = Mock()
@@ -87,6 +101,132 @@ class ApplicationUnitTests(unittest.TestCase):
         self.assertEqual(quote.previous_close, 120.0)
         self.assertEqual(quote.currency, "EUR")
         self.assertAlmostEqual(quote.change_percent, 2.88, places=2)
+
+    def test_finnhub_client_parses_quote_and_uses_api_key(self):
+        response = Mock(status_code=200)
+        response.json.return_value = {"c": 123.45, "pc": 120.0, "t": 1_700_000_000}
+        client = FinnhubMarketDataClient(api_key="test-token", max_retries=0)
+
+        with patch("app.finnhub_client.requests.get", return_value=response) as get:
+            quote = client.get_quote("aapl")
+
+        self.assertEqual(quote.symbol, "AAPL")
+        self.assertEqual(quote.price, 123.45)
+        self.assertEqual(quote.currency, "USD")
+        self.assertAlmostEqual(quote.change_percent, 2.88, places=2)
+        self.assertEqual(get.call_args.kwargs["params"]["token"], "test-token")
+
+    def test_finnhub_catalog_returns_searchable_symbols(self):
+        response = Mock(status_code=200)
+        response.json.return_value = [
+            {
+                "symbol": "AAPL",
+                "displaySymbol": "AAPL",
+                "description": "Apple Inc",
+                "type": "Common Stock",
+            },
+            {"description": "Missing symbol"},
+            None,
+        ]
+        client = FinnhubMarketDataClient(api_key="test-token", max_retries=0)
+
+        with patch("app.finnhub_client.requests.get", return_value=response) as get:
+            catalog = client.get_ticker_catalog("US")
+
+        self.assertEqual(catalog, [{
+            "symbol": "AAPL",
+            "displaySymbol": "AAPL",
+            "description": "Apple Inc",
+            "type": "Common Stock",
+            "exchange": "US",
+        }])
+        self.assertEqual(get.call_args.kwargs["params"]["exchange"], "US")
+
+    def test_finnhub_retries_rate_limit_without_exposing_api_key(self):
+        responses = [Mock(status_code=429), Mock(status_code=200)]
+        responses[1].json.return_value = {"c": 123.45, "pc": 120.0, "t": 1_700_000_000}
+        client = FinnhubMarketDataClient(api_key="secret-test-token", max_retries=1)
+
+        with patch("app.finnhub_client.requests.get", side_effect=responses) as get, patch(
+            "app.finnhub_client.time.sleep"
+        ) as sleep:
+            quote = client.get_quote("AAPL")
+
+        self.assertEqual(quote.price, 123.45)
+        self.assertEqual(get.call_count, 2)
+        sleep.assert_called_once_with(1)
+
+    def test_finnhub_connection_error_does_not_expose_api_key(self):
+        client = FinnhubMarketDataClient(api_key="secret-test-token", max_retries=0)
+        with patch(
+            "app.finnhub_client.requests.get",
+            side_effect=__import__("requests").RequestException("token=secret-test-token"),
+        ):
+            with self.assertRaises(MarketDataError) as context:
+                client.get_quote("AAPL")
+
+        self.assertNotIn("secret-test-token", str(context.exception))
+
+    def test_realtime_portfolio_uses_selected_finnhub_provider(self):
+        position = {
+            "name": "Test ETF",
+            "ticker": "IE00BK5BQT80 • TEST",
+            "shares": 2,
+            "price": 100.0,
+            "value": 200.0,
+            "gain": 0.0,
+            "gainPct": 0.0,
+            "allocation": 100.0,
+            "badge": "test",
+            "init": "T",
+        }
+        quote = Quote(
+            symbol="VWRA.L",
+            price=110.0,
+            previous_close=100.0,
+            currency="GBP",
+            timestamp=1_700_000_000,
+            source="Finnhub.io",
+        )
+        with patch.object(main_module, "load_portfolio_data", return_value=[position]), patch.object(
+            main_module.finnhub_data_client, "get_quote", return_value=quote
+        ), patch.object(
+            main_module.finnhub_data_client, "get_fx_rate", return_value=1.2
+        ), patch.object(main_module.market_data_client, "get_quote") as yahoo_get_quote:
+            result = main_module.get_realtime_portfolio(provider="finnhub")
+
+        self.assertEqual(result[0]["dataSource"], "Finnhub.io")
+        self.assertEqual(result[0]["price"], 132.0)
+        yahoo_get_quote.assert_not_called()
+
+    def test_ticker_catalog_is_cached_only_after_explicit_refresh(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            catalog_file = Path(temp_dir) / "ticker_catalog.json"
+            sample = [{
+                "symbol": "AAPL",
+                "displaySymbol": "AAPL",
+                "description": "Apple Inc",
+                "type": "Common Stock",
+                "exchange": "US",
+            }]
+            with patch.object(main_module, "CATALOG_FILE", catalog_file):
+                initial = main_module.get_ticker_catalog("US")
+                self.assertEqual(initial["symbols"], [])
+                self.assertFalse(catalog_file.exists())
+                with patch.object(
+                    main_module.finnhub_data_client,
+                    "get_ticker_catalog",
+                    return_value=sample,
+                ) as refresh:
+                    updated = main_module.refresh_ticker_catalog("US")
+                loaded = main_module.get_ticker_catalog("US")
+
+        refresh.assert_called_once_with("US")
+        self.assertEqual(updated["status"], "success")
+        self.assertEqual(updated["exchange"], "US")
+        self.assertEqual(updated["symbols"], sample)
+        self.assertEqual(loaded["symbols"], sample)
+        self.assertIsNotNone(loaded["updated_at"])
 
     def test_realtime_portfolio_uses_real_quote_and_converts_to_eur(self):
         position = {
@@ -149,6 +289,107 @@ class ApplicationUnitTests(unittest.TestCase):
             isin = main_module._position_isin(item)
             self.assertIn(isin, main_module.YAHOO_TICKER_MAP)
             self.assertTrue(main_module.YAHOO_TICKER_MAP[isin])
+
+    def test_market_protocol_decodes_pricing_push(self):
+        message = PricingData()
+        message.id = "VWRA.L"
+        message.price = 123.45
+        message.time = 1_700_000_000_000
+        message.currency = "EUR"
+        message.previous_close = 120.0
+        message.market_hours = 1
+        message.change_percent = 2.88
+        encoded = __import__("base64").b64encode(message.SerializeToString()).decode("ascii")
+
+        decoded = decode_yahoo_pricing(encoded)
+
+        self.assertEqual(decoded["symbol"], "VWRA.L")
+        self.assertAlmostEqual(decoded["price"], 123.45, places=4)
+        self.assertEqual(decoded["currency"], "EUR")
+        self.assertEqual(decoded["market_state"], "REGULAR_OR_24_7")
+        self.assertEqual(decoded["timestamp"], 1_700_000_000)
+        self.assertEqual(decoded["delivery"], "push")
+
+    def test_agents_validate_diagnose_and_optimize(self):
+        valid_quote = Quote(
+            symbol="VWRA.L",
+            price=110.0,
+            previous_close=100.0,
+            currency="EUR",
+            timestamp=1_700_000_000,
+            market_state="REGULAR",
+            delivery="push",
+        )
+        invalid_quote = Quote("TEST", 1.0, None, "EUR", None)
+
+        self.assertTrue(analyst_validate_tick(valid_quote)["valid"])
+        self.assertTrue(analyst_validate_tick(invalid_quote)["valid"])
+        self.assertFalse(
+            analyst_validate_tick(Quote("TEST", 0.0, None, "EUR", None))["valid"]
+        )
+        diagnosis = architect_diagnose_connection({"state": "disconnected", "reconnect_attempts": 2})
+        self.assertEqual(diagnosis["agent"], "architect")
+        self.assertIn("reconectar", diagnosis["action"])
+        optimized = optimizer_calculate_position(
+            {"shares": 2, "price": 100.0, "gain": 0.0}, valid_quote, 1.0
+        )
+        self.assertEqual(optimized["value"], 220.0)
+        self.assertEqual(optimized["gain"], 20.0)
+
+    def test_stream_service_publishes_only_changed_position(self):
+        position = {
+            "name": "Test ETF",
+            "ticker": "IE00BK5BQT80 • TEST",
+            "shares": 2,
+            "price": 100.0,
+            "value": 200.0,
+            "gain": 0.0,
+            "gainPct": 0.0,
+            "allocation": 100.0,
+            "badge": "test",
+            "init": "T",
+        }
+        service = MarketStreamService(lambda: [position])
+        service._positions = {"VWRA.L": position}
+        service._quotes["VWRA.L"] = Quote(
+            "VWRA.L", 100.0, 100.0, "EUR", 1_700_000_000, delivery="snapshot"
+        )
+        queue = service.subscribe()
+
+        asyncio.run(
+            service._on_quote(
+                {
+                    "symbol": "VWRA.L",
+                    "price": 110.0,
+                    "previous_close": 100.0,
+                    "currency": "EUR",
+                    "exchange": "GER",
+                    "timestamp": 1_700_000_001,
+                    "timestamp_iso": "2023-11-14T22:13:21+00:00",
+                    "change_percent": 10.0,
+                    "market_state": "REGULAR",
+                    "delivery": "push",
+                }
+            )
+        )
+
+        event = queue.get_nowait()
+        self.assertEqual(event["type"], "quote_update")
+        self.assertEqual(event["symbol"], "VWRA.L")
+        self.assertEqual(event["position"]["dataStatus"], "realtime_push")
+        self.assertEqual(event["position"]["marketPrice"], 110.0)
+        self.assertTrue(queue.empty())
+
+    def test_frontend_uses_push_without_polling(self):
+        html = (Path(main_module.PROJECT_ROOT) / "index.html").read_text(encoding="utf-8")
+        self.assertIn("new WebSocket", html)
+        self.assertIn("event.type === 'quote_update'", html)
+        self.assertNotIn("setInterval(refreshData", html)
+        self.assertNotIn("fetch('/api/portfolio/realtime'", html)
+        self.assertIn("/api/portfolio/realtime?provider=", html)
+        self.assertIn("portfolio.tickerCatalog.finnhub.US.v1", html)
+        self.assertIn("fetch('/api/catalog/refresh?exchange=US'", html)
+        self.assertNotIn("fetch('/api/catalog')", html)
 
 
 if __name__ == "__main__":

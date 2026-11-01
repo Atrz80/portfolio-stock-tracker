@@ -16,6 +16,16 @@ from datetime import datetime, timezone
 import requests
 
 YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+YAHOO_TICKER_MAP = {
+    "IE00BK5BQT80": "VWRA.L",
+    "IE000I8KRLL9": "SEMI.AS",
+    "LU1829221024": "UST.PA",
+    "IE00BKM4GZ66": "EIMI.L",
+    "JP3733000008": "6701.T",
+    "JP3419400001": "4204.T",
+    "IE00B4RFH31": "IUSN.DE",
+    "JP3379550001": "5016.T",
+}
 YAHOO_FX_SYMBOLS = {
     "USD": "EURUSD=X",
     "JPY": "JPYUSD=X",
@@ -32,9 +42,15 @@ class Quote:
     currency: str
     timestamp: int | None
     source: str = "Yahoo Finance"
+    market_state: str = "UNKNOWN"
+    incoming_change_percent: float | None = None
+    exchange: str = ""
+    delivery: str = "snapshot"
 
     @property
     def change_percent(self) -> float | None:
+        if self.incoming_change_percent is not None:
+            return round(float(self.incoming_change_percent), 2)
         if not self.previous_close:
             return None
         return round((self.price - self.previous_close) / self.previous_close * 100, 2)
@@ -151,6 +167,9 @@ class YahooMarketDataClient:
                     previous_close=round(previous_close, 6) if previous_close is not None else None,
                     currency=str(meta.get("currency") or "USD").upper(),
                     timestamp=meta.get("regularMarketTime"),
+                    market_state=str(meta.get("marketState") or "UNKNOWN").upper(),
+                    exchange=str(meta.get("exchange") or ""),
+                    delivery="snapshot",
                 )
             except (requests.RequestException, ValueError, MarketDataError) as exc:
                 last_error = exc

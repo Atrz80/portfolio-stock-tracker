@@ -31,10 +31,20 @@ Aplicación de seguimiento de portfolio con frontend web, backend FastAPI, memor
 - [x] Configuración global de IA separada en `E:\Proyectos\ai-workstation`; el proyecto carga el `.env` global sin duplicar secretos.
 - [x] Variables globales instaladas en el entorno de usuario de Windows.
 - [x] Runtime global instalado en `E:\Proyectos\ai-workstation\runtime`: Python 3.11, uv, FastAPI, CrewAI y Freellmpool; los procesos del proyecto se ejecutan desde binarios de `E:`.
-- [x] Datos del dashboard obtenidos en tiempo real desde la API pública `/v8/finance/chart` de Yahoo Finance, con ticker, moneda, timestamp, cierre anterior y conversión real a EUR.
-- [x] Eliminado el fallback aleatorio: si la fuente real falla, la API devuelve HTTP 503 y el dashboard informa del error.
+- [x] Datos del dashboard obtenidos mediante Yahoo Finance WebSocket push (`wss://streamer.finance.yahoo.com`), decodificando pricing protobuf y distribuyendo cada cambio solo por símbolo.
+- [x] Eliminados el polling de 5 segundos y el fallback aleatorio: el frontend consume `/ws/market`, actualiza una única fila por `quote_update` y reconecta con backoff.
+- [x] Streaming real validado con dos eventos push consecutivos de `BTC-USD`; los activos del portfolio se muestran como `snapshot` cuando sus mercados están cerrados hasta recibir un tick.
+- [x] Agentes instalados divididos por función: `analyst` valida ticks, `architect` diagnostica push/reconexión y `optimizer` revisa valor/P&L/asignación.
 - [x] Tickers ISIN verificados: `VWRA.L`, `SEMI.AS`, `UST.PA`, `EIMI.L`, `6701.T`, `4204.T`, `IUSN.DE` y `5016.T`.
 - [x] E2E validado: FastAPI `:8000`, Freellmpool `:8080`, dashboard, 8 posiciones de mercado y chat real (`OK`).
+- [x] Selector web Yahoo/Finnhub, persistencia de preferencia y refresco manual de precios integrados; el navegador validó ocho posiciones y la vista móvil a 390 px sin desbordamiento horizontal.
+- [x] Catálogo Finnhub USA con refresco explícito y búsqueda local; probado con catálogo simulado en el navegador y persistencia tras recargar.
+- [x] 17 pruebas unitarias, compilación Python y contrato HTTP del catálogo superados.
+- [x] App Android actualizada con proveedor persistido y caché/búsqueda local; APK debug compilado con `gradlew.bat assembleDebug`.
+- [x] Wrapper Gradle 8.7 generado y probado en Windows; se alineó Kotlin 1.9.22 con Compose Compiler 1.5.8 para compilar correctamente.
+- [x] Cline 4.1.26 instalado junto a Roo Code; endpoint Kilo `kilo-auto/free` probado sin clave y valores documentados. La selección del proveedor en la interfaz de Cline aún requiere acción manual.
+- [x] `Abrir Portfolio Stock Tracker.bat` espera hasta 180 s al arranque en frío, inicia backend y gateway, abre el dashboard en una ventana aislada de Chrome/Edge y los detiene al cerrar esa ventana o pulsar Ctrl+C; el ciclo completo quedó probado.
+- [x] `stop-all.ps1` valida manifiesto, comando, puerto y PID antes de parar procesos; `-WhatIf` confirmó el árbol previsto sin interrumpir los servicios.
 - [x] `.clinerules` eliminado del proyecto: las reglas globales viven solo en `E:\Proyectos\ai-workstation\.clinerules`.
 
 ## ⚠️ Limitaciones y pendientes
@@ -43,6 +53,9 @@ Aplicación de seguimiento de portfolio con frontend web, backend FastAPI, memor
 - El contenido de la copia temporal del workspace C: fue eliminado tras validar el destino; no queda una segunda copia del código.
 - `scripts/archive/` contiene generadores históricos no usados; uno (`generate_dashboard.py`) conserva un error de indentación preexistente y queda fuera de la compilación productiva.
 - Google Sheets, Telegram y Docker siguen siendo trabajo pendiente/por verificar; no deben considerarse implementados solo por la documentación antigua.
+- Finnhub no se pudo validar contra la API real: falta `FINNHUB_API_KEY` en el `.env` global. Las solicitudes sin clave responden HTTP 503 explícitamente.
+- El catálogo consultable implementado es el de Finnhub para USA (`exchange=US`); la app Android compila, pero no se ha ejecutado en un emulador o dispositivo.
+- La configuración de Kilo está documentada en `docs/CLINE_FREE_LLM_APIS.md`; seleccionar OpenAI Compatible en los ajustes de Cline es un paso manual.
 - `google.generativeai` está en desuso y emite avisos; migrar a `google-genai` es una mejora futura.
 
 ## 🔐 Configuración
@@ -63,5 +76,3 @@ Aplicación de seguimiento de portfolio con frontend web, backend FastAPI, memor
 - `docs/IMPLEMENTATION_REPORT.md`: informe de los tres pilares.
 - `docs/COMPATIBILITY_FIXES.md`: compatibilidad y límites conocidos.
 - `docs/CLINE_OPENAI_COMPATIBLE.md`: configuración de Cline y Freellmpool.
-
-

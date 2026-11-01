@@ -4,7 +4,7 @@
 - **Aplicación web**: `index.html` carga datos desde FastAPI y muestra el portfolio.
 - **Backend**: `app/main.py` expone portfolio en tiempo real, memoria, chat y agencia; `main.py` mantiene compatibilidad con `uvicorn main:app`.
 - **Datos locales**: `portfolio.json` es la fuente actual del portfolio.
-- **Datos de mercado**: Yahoo Finance Chart API pública (`/v8/finance/chart`), sin clave; precios, moneda, timestamp y cierre anterior reales. Las posiciones se convierten a EUR con cotizaciones FX reales.
+- **Datos de mercado**: Yahoo Finance WebSocket push público (`wss://streamer.finance.yahoo.com`), decodificación protobuf por símbolo, heartbeat de suscripción y reconexión exponencial. El snapshot inicial usa Chart API; cada tick posterior actualiza solo su posición.
 - **Gateway IA**: Freellmpool local en `http://127.0.0.1:8080/v1`.
 - **Memoria**: persistencia JSONL local y recuperable.
 - **Agencia**: tres perfiles (`analyst`, `architect`, `optimizer`) con `crewai.LLM` conectado a Freellmpool.
@@ -26,11 +26,21 @@
 - [x] Arranque conjunto y health checks de FastAPI/Freellmpool.
 - [x] Persistencia de memoria mediante API.
 - [x] Chat real mediante Freellmpool.
-- [x] Agencia en modo directo.
+- [x] Agencia en modo directo con selección de `analyst`, `architect` y `optimizer`.
+- [x] WebSocket push validado con eventos reales consecutivos; snapshot FastAPI con 8 posiciones y actualización individual por símbolo.
+- [x] Selector web/Android de Yahoo o Finnhub, persistencia de preferencia y refresco manual de cotizaciones Finnhub.
+- [x] Catálogo Finnhub USA guardado localmente en navegador/Android; búsqueda local y actualización solo mediante acción del usuario. La web y la caché tras recarga se probaron en navegador.
+- [x] 17 pruebas unitarias y compilación Python superadas; la vista web móvil se comprobó a 390 px con las 8 posiciones y sin scroll horizontal.
+- [x] APK Android debug compilado con `gradlew.bat assembleDebug`; wrapper Gradle 8.7 generado y probado. No se ha ejecutado en emulador/dispositivo.
+- [x] Endpoint Kilo `kilo-auto/free` comprobado sin clave; Cline y Roo Code están instalados y la guía de configuración está en `docs/CLINE_FREE_LLM_APIS.md`. El proveedor aún debe seleccionarse en la interfaz de Cline.
+- [x] `Abrir Portfolio Stock Tracker.bat` espera hasta 180 s al arranque en frío, abre el dashboard en una ventana aislada y detiene los servicios al cerrarla o pulsar Ctrl+C; arranque y apagado verificados de extremo a extremo.
 - [ ] Tool-calling/Crew completo: bloqueado por proveedores actuales sin candidatos compatibles.
 - [ ] Google Sheets: pendiente.
 - [ ] Telegram Bot: pendiente.
 - [ ] Docker: pendiente; Docker no está instalado en la máquina validada.
+- [ ] Finnhub real: pendiente de añadir `FINNHUB_API_KEY` al `.env` global; sin clave, la API responde HTTP 503.
+- [ ] Probar la app Android en un emulador o dispositivo.
+- [ ] Seleccionar y guardar OpenAI Compatible con Kilo en los ajustes de Cline.
 
 ## 🗺️ 4. Próximas tareas
 1. Actualizar `index.html` a módulos ES6 si se mantiene la regla de 300 líneas.

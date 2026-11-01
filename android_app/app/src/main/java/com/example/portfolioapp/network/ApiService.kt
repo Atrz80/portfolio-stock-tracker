@@ -1,19 +1,23 @@
 package com.example.portfolioapp.network
 
-import com.example.portfolioapp.data.GeminiAnalysisResponse
+import com.example.portfolioapp.data.CatalogRefreshResponse
 import com.example.portfolioapp.data.Stock
+import com.example.portfolioapp.data.TickerCatalog
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.Query
 
 interface PortfolioApiService {
     @GET("api/portfolio/realtime")
-    suspend fun getRealtimePortfolio(): List<Stock>
+    suspend fun getRealtimePortfolio(@Query("provider") provider: String): List<Stock>
 
-    @POST("api/gemini/analyze")
-    suspend fun analyzePortfolio(@Body stocks: Map<String, List<Stock>>): GeminiAnalysisResponse
+    @GET("api/catalog")
+    suspend fun getCatalog(@Query("exchange") exchange: String): TickerCatalog
+
+    @POST("api/catalog/refresh")
+    suspend fun refreshCatalog(@Query("exchange") exchange: String): CatalogRefreshResponse
 
     companion object {
         // En emulador Android, localhost del PC es 10.0.2.2

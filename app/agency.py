@@ -29,18 +29,18 @@ llm = LLM(
 PROFILES: dict[str, dict[str, str]] = {
     'analyst': {
         'role': 'Analista Financiero y de Software',
-        'goal': 'Analizar datos de portfolio y proporcionar insights detallados.',
-        'backstory': 'Experto en análisis cuantitativo y gestión de riesgos.',
+        'goal': 'Validar cotizaciones push por símbolo y explicar cambios, variación, timestamp y estado de mercado.',
+        'backstory': 'Experto en análisis cuantitativo, validación de ticks y gestión de riesgos.',
     },
     'architect': {
         'role': 'Arquitecto de Soluciones',
-        'goal': 'Diseñar arquitecturas escalables y eficientes.',
-        'backstory': 'Arquitecto senior con 15 años de experiencia en diseño de sistemas.',
+        'goal': 'Diagnosticar la conexión push de mercado, reconexiones, heartbeat y difusión WebSocket.',
+        'backstory': 'Arquitecto senior especializado en streaming WebSocket y sistemas resilientes.',
     },
     'optimizer': {
         'role': 'Optimizador de Portafolio',
-        'goal': 'Optimizar asignaciones y maximizar retornos.',
-        'backstory': 'Especialista en optimización matemática y gestión de activos.',
+        'goal': 'Revisar valor, P&L, asignación y efectos de cada actualización individual de precio.',
+        'backstory': 'Especialista en optimización matemática y Cartera de activos en tiempo real.',
     },
 }
 
@@ -69,7 +69,14 @@ def _run_direct(profile: dict[str, str], objective: str) -> str:
         },
         {'role': 'user', 'content': objective},
     ]
-    result = llm.call(messages)
+    # Use the resilient gateway client so every agent gets model rotation and
+    # bounded backoff on quota/payment/network failures.
+    result = freellmpool_client.chat_completar(
+        objective,
+        system_prompt=messages[0]['content'],
+    )
+    if result.startswith('Error:'):
+        raise RuntimeError(result)
     return str(result) if result else 'No output generated.'
 
 

@@ -8,6 +8,7 @@ venv/
 *.pyc
 dist/
 build/
+.gradle/
 *.egg-info/
 python_portable/
 output.log
@@ -19,4 +20,3 @@ runtime/
 .pytest_cache/
 validation_*.log
 validation_*.pid
-
