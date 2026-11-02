@@ -25,3 +25,19 @@ is retained and every change creates a timestamped backup under
 `storage/portfolio-backups/`. The bulk replacement endpoint is disabled to
 prevent accidental portfolio loss. Unlocking position management also enables
 recording additional purchases by shares, EUR cost, and trade date.
+
+## Test on a phone
+
+The responsive web dashboard is the recommended way to use the portfolio on a
+phone; it does not require installing an APK. On Windows, connect the PC and
+phone to the same trusted Wi-Fi, then launch `Abrir Portfolio Stock
+Tracker.bat` with `-ListenOnLan` (from PowerShell, quote the filename if
+needed). Confirm the LAN access prompt, leave the launcher window open, and
+open the printed `http://<PC-IP>:8000/dashboard` address in the phone browser.
+If Windows Firewall prompts, allow access on Private networks only. Close the
+launcher window when finished to stop the services.
+
+LAN mode is opt-in because the local API has no login and exposes the portfolio
+to devices on that private network. Do not use it on public or untrusted Wi-Fi.
+The app still needs the PC to remain on and connected; it is not an offline,
+standalone mobile app.

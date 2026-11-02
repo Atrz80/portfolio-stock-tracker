@@ -3,10 +3,23 @@
 param(
     [int]$GatewayPort = 8080,
     [int]$ApiPort = 8000,
-    [int]$TimeoutSeconds = 60
+    [int]$TimeoutSeconds = 60,
+    [string]$ApiHost = '127.0.0.1'
 )
 
 $ErrorActionPreference = 'Stop'
+$parsedApiHost = $null
+if (-not [Net.IPAddress]::TryParse($ApiHost, [ref]$parsedApiHost) -or
+    $parsedApiHost.AddressFamily -ne [Net.Sockets.AddressFamily]::InterNetwork) {
+    throw "The API host must be a local IPv4 address: $ApiHost"
+}
+if ($ApiHost -ne '127.0.0.1') {
+    $localIpv4Addresses = Get-NetIPAddress -AddressFamily IPv4 -AddressState Preferred |
+        Select-Object -ExpandProperty IPAddress
+    if ($ApiHost -notin $localIpv4Addresses) {
+        throw "The API host must be an IPv4 address assigned to this computer: $ApiHost"
+    }
+}
 $env:PYTHONIOENCODING = 'utf-8'
 $env:PYTHONUTF8 = '1'
 $WorkDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
@@ -125,13 +138,13 @@ Write-Host '[...] Starting FastAPI...' -ForegroundColor Cyan
 $apiOut = Join-Path $LogDir 'fastapi.out.log'
 $apiErr = Join-Path $LogDir 'fastapi.err.log'
 $api = Start-Process -FilePath $Python `
-    -ArgumentList @('-m', 'uvicorn', 'main:app', '--host', '127.0.0.1', '--port', "$ApiPort") `
+    -ArgumentList @('-m', 'uvicorn', 'main:app', '--host', $ApiHost, '--port', "$ApiPort") `
     -WorkingDirectory $WorkDir -RedirectStandardOutput $apiOut `
     -RedirectStandardError $apiErr -WindowStyle Hidden -PassThru
 $services += [ordered]@{ name = 'fastapi'; launcherPid = $api.Id; listenerPid = $null; port = $ApiPort }
 Save-Manifest -Services $services
 
-if (-not (Wait-HttpReady -Name 'FastAPI' -Url "http://127.0.0.1:$ApiPort/")) {
+if (-not (Wait-HttpReady -Name 'FastAPI' -Url "http://${ApiHost}:$ApiPort/")) {
     Save-Manifest -Services $services
     & (Join-Path $WorkDir 'stop-all.ps1') -Quiet
     throw "FastAPI did not start. Check $apiErr"
@@ -150,6 +163,6 @@ Save-Manifest -Services $services
 Write-Host ''
 Write-Host 'System started successfully:' -ForegroundColor Green
 Write-Host "  - Freellmpool: http://127.0.0.1:$GatewayPort/v1"
-Write-Host "  - FastAPI:     http://127.0.0.1:$ApiPort"
+Write-Host "  - FastAPI:     http://${ApiHost}:$ApiPort"
 Write-Host "  - Manifiesto:  $ManifestPath"
 Write-Host 'To stop it: .\stop-all.ps1' -ForegroundColor Cyan
