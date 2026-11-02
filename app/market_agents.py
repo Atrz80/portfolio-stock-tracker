@@ -1,13 +1,13 @@
-"""Políticas deterministas para los roles de la agencia de mercado.
+"""Deterministic policies for the market agency roles.
 
-El camino realtime no llama a un LLM para cada tick: eso añadiría latencia y
-puede ser incorrecto. Cada agente installed sí define una función concreta:
+The realtime path does not call an LLM for every tick: that would add latency
+and could produce incorrect results. Each installed agent has a specific role:
 
-- analyst valida un tick;
-- architect diagnostica la conexión;
-- optimizer recalcula valor y P&L.
+- analyst validates a tick;
+- architect diagnoses the connection;
+- optimizer recalculates value and P&L.
 
-Las recomendaciones narrativas siguen disponibles mediante la agencia LLM.
+Narrative recommendations remain available through the LLM agency.
 """
 
 from __future__ import annotations
@@ -18,11 +18,11 @@ from .market_data import Quote
 
 
 def analyst_validate_tick(quote: Quote) -> dict[str, Any]:
-    """Valida precio y disponibilidad temporal de un tick.
+    """Validate a tick's price and timestamp availability.
 
-    Yahoo no incluye timestamp en todos los pricing push. Un precio positivo
-    sigue siendo una actualización push válida; el servidor registra entonces
-    ``received_at`` para medir la latencia de entrega.
+    Yahoo does not include a timestamp in every pricing push. A positive price
+    is still a valid push update; the server then records ``received_at`` to
+    measure delivery latency.
     """
     valid = quote.price > 0
     return {
@@ -33,21 +33,21 @@ def analyst_validate_tick(quote: Quote) -> dict[str, Any]:
         "currency": quote.currency,
         "market_state": quote.market_state,
         "timestamp": quote.timestamp,
-        "reason": None if valid else "precio inválido",
+        "reason": None if valid else "Invalid price",
     }
 
 
 def architect_diagnose_connection(health: dict[str, Any]) -> dict[str, Any]:
-    """Clasifica el estado de la conexión push y la siguiente acción."""
+    """Classify the push connection state and the next action."""
     state = health.get("state")
     if state == "connected":
-        action = "mantener suscripción y heartbeat"
+        action = "maintain subscription and heartbeat"
         severity = "ok"
     elif state == "connecting":
-        action = "esperar handshake push"
+        action = "wait for the push handshake"
         severity = "info"
     else:
-        action = "reconectar con backoff exponencial"
+        action = "reconnect with exponential backoff"
         severity = "warning"
     return {
         "agent": "architect",
@@ -59,16 +59,24 @@ def architect_diagnose_connection(health: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def position_cost_basis(position: dict[str, Any]) -> float:
+    """Return the recorded investment cost, supporting legacy portfolio entries."""
+    cost_basis = position.get("costBasis")
+    if cost_basis is not None:
+        return float(cost_basis)
+    return float(position["price"]) * float(position["shares"]) - float(
+        position.get("gain", 0.0)
+    )
+
+
 def optimizer_calculate_position(
     position: dict[str, Any],
     quote: Quote,
     fx_to_eur: float,
 ) -> dict[str, Any]:
-    """Recalcula una posición usando el tick y la tasa FX reales."""
+    """Recalculate a position using the real tick and FX rate."""
     shares = float(position["shares"])
-    stored_price_eur = float(position["price"])
-    stored_gain = float(position.get("gain", 0.0))
-    initial_cost = stored_price_eur * shares - stored_gain
+    initial_cost = position_cost_basis(position)
     price_eur = quote.price * fx_to_eur
     value = price_eur * shares
     gain = value - initial_cost

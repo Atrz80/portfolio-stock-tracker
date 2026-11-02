@@ -17,27 +17,27 @@ try:
         print('✅ yfinance importado correctamente')
         yfinance_available = True
     except ImportError:
-        print('❌ yfinance no disponible - usando simulación solo')
+        print('❌ yfinance is unavailable - using simulation only')
         yfinance_available = False
     
     # Create test client
     client = TestClient(main_module.app)
     
-    print('🧪 Probando endpoint /api/portfolio...')
+    print('🧪 Testing endpoint /api/portfolio...')
     response = client.get('/api/portfolio')
     print(f'Status: {response.status_code}')
     data = response.json()
     print(f'Activos cargados: {len(data)}')
     print(f'Valor total: €{sum(item["value"] for item in data):.2f}')
     
-    print('\n🧪 Probando endpoint /api/portfolio/realtime...')
+    print('\n🧪 Testing endpoint /api/portfolio/realtime...')
     response2 = client.get('/api/portfolio/realtime')
     print(f'Status: {response2.status_code}')
     data2 = response2.json()
     print(f'Activos actualizados: {len(data2)}')
     print(f'Valor total actualizado: €{sum(item["value"] for item in data2):.2f}')
     
-    print('\n✅ Todas las pruebas completadas!')
+    print('\n✅ All tests completed!')
     
 except Exception as e:
     print(f'❌ Error: {e}')

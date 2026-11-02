@@ -1,21 +1,35 @@
-# Aplicación Android
+# Android Application
 
-La app Compose consume el backend FastAPI en `http://10.0.2.2:8000/` (dirección del host desde el emulador Android).
+The Compose app uses the FastAPI backend at `http://10.0.2.2:8000/` (the host
+address from the Android emulator).
 
-- Los precios se consultan en `GET /api/portfolio/realtime?provider=yahoo|finnhub`. La selección del proveedor queda guardada localmente; los precios también pueden refrescarse manualmente.
-- El catálogo estadounidense se lee con `GET /api/catalog?exchange=US` o se actualiza explícitamente con `POST /api/catalog/refresh?exchange=US`. Ambos endpoints devuelven `exchange`, `symbols` y `updated_at` (`POST` también devuelve `status`). Cada símbolo contiene `symbol`, `displaySymbol`, `description`, `type` y `exchange`. La respuesta se conserva en `SharedPreferences`; el catálogo no se descarga ni actualiza automáticamente. La búsqueda local filtra los campos del catálogo guardado.
-- Las respuestas de portfolio se mapean según los campos reales del backend (`ticker`, `shares`, `gainPct`, `changePercent`, `marketSymbol`, entre otros).
-- El análisis Gemini anterior no es compatible: el backend actual no define `POST /api/gemini/analyze`, por lo que la app indica que no está disponible.
+- Prices are fetched from `GET /api/portfolio/realtime?provider=yahoo|finnhub`.
+  The provider selection is saved locally; prices can also be refreshed
+  manually.
+- The US catalog is read with `GET /api/catalog?exchange=US` or explicitly
+  refreshed with `POST /api/catalog/refresh?exchange=US`. Both endpoints
+  return `exchange`, `symbols`, and `updated_at` (`POST` also returns
+  `status`). Each symbol contains `symbol`, `displaySymbol`, `description`,
+  `type`, and `exchange`. The response is stored in `SharedPreferences`; the
+  catalog is not downloaded or updated automatically. Local search filters
+  the saved catalog fields.
+- Portfolio responses are mapped according to the backend's actual fields
+  (`ticker`, `shares`, `gainPct`, `changePercent`, `marketSymbol`, among
+  others).
+- The previous Gemini analysis is not supported: the current backend does not
+  define `POST /api/gemini/analyze`, so the app indicates that it is
+  unavailable.
 
-Código Android activo: `app/src/main/java/com/example/portfolioapp/`.
+Active Android code: `app/src/main/java/com/example/portfolioapp/`.
 
-## Compilar
+## Build
 
-Se requiere Java 17 y Android SDK Platform 34. En Windows, desde esta carpeta:
+Java 17 and Android SDK Platform 34 are required. On Windows, from this
+directory:
 
 ```powershell
 .\gradlew.bat assembleDebug
 ```
 
-El wrapper usa Gradle 8.7 y descarga esa versión la primera vez. El APK de
-depuración se genera en `app/build/outputs/apk/debug/app-debug.apk`.
+The wrapper uses Gradle 8.7 and downloads that version the first time. The
+debug APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.

@@ -1,6 +1,8 @@
 import asyncio
 import tempfile
+import time
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -25,11 +27,11 @@ class ApplicationUnitTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             memory_file = Path(temp_dir) / "memory.jsonl"
             with patch("app.agent_memory.MEMORY_FILE", memory_file):
-                stored = remember("La reunión es el lunes", source="unit-test")
-                recalled = recall("reunión")
+                stored = remember("The meeting is on Monday", source="unit-test")
+                recalled = recall("meeting")
 
             self.assertEqual(stored["status"], "success")
-            self.assertEqual(recalled[0]["text"], "La reunión es el lunes")
+            self.assertEqual(recalled[0]["text"], "The meeting is on Monday")
             self.assertTrue(memory_file.exists())
 
     def test_freellmpool_retries_after_quota_error(self):
@@ -45,7 +47,7 @@ class ApplicationUnitTests(unittest.TestCase):
 
         with patch("app.freellmpool_client.requests.post", side_effect=fake_post), patch("app.freellmpool_client.time.sleep"):
             client = FreellmpoolClient("http://localhost:8080/v1", "local")
-            result = client.chat_completar("hola", max_reintentos=2)
+            result = client.chat_complete("hello", max_retries=2)
 
         self.assertEqual(result, "ok")
         self.assertEqual(len(calls), 2)
@@ -54,20 +56,20 @@ class ApplicationUnitTests(unittest.TestCase):
 
     def test_api_uses_mocked_services(self):
         with patch.object(main_module, "remember", lambda text, source: {"status": "success", "stored": text}), patch.object(
-            main_module, "recall", lambda query, limit: [{"text": "recuerdo"}]
+        main_module, "recall", lambda query, limit: [{"text": "memory"}]
         ), patch.object(
-            main_module, "chat_with_memory", lambda message: f"respuesta: {message}"
+            main_module, "chat_with_memory", lambda message: f"response: {message}"
         ), patch.object(
-            main_module, "run_agency_task", lambda objective, agent="analyst", mode=None: {"status": "success", "result": objective}
+        main_module, "run_agency_task", lambda objective, agent_type="analyst", mode=None: {"status": "success", "result": objective}
         ):
             client = TestClient(main_module.app)
 
             self.assertEqual(client.get("/").status_code, 200)
             self.assertEqual(client.get("/api/portfolio").status_code, 200)
             self.assertEqual(client.post("/memory/remember", json={"text": "dato"}).json()["status"], "success")
-            self.assertEqual(client.post("/memory/recall", json={"query": "dato"}).json()["results"][0]["text"], "recuerdo")
-            self.assertEqual(client.post("/chat", json={"message": "hola"}).json()["response"], "respuesta: hola")
-            self.assertEqual(client.post("/agency/run", json={"objective": "analizar"}).json()["result"], "analizar")
+            self.assertEqual(client.post("/memory/recall", json={"query": "data"}).json()["results"][0]["text"], "memory")
+            self.assertEqual(client.post("/chat", json={"message": "hello"}).json()["response"], "response: hello")
+            self.assertEqual(client.post("/agency/run", json={"objective": "analyze"}).json()["result"], "analyze")
             agency_result = client.post(
                 "/agency/run",
                 json={"objective": "revisar", "agente_tipo": "architect", "modo": "direct"},
@@ -101,6 +103,118 @@ class ApplicationUnitTests(unittest.TestCase):
         self.assertEqual(quote.previous_close, 120.0)
         self.assertEqual(quote.currency, "EUR")
         self.assertAlmostEqual(quote.change_percent, 2.88, places=2)
+
+    def test_market_client_parses_historical_yahoo_response(self):
+        response = Mock()
+        response.status_code = 200
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "chart": {
+                "result": [
+                    {
+                        "meta": {"currency": "EUR"},
+                        "timestamp": [1_700_000_000, 1_700_086_400, 1_700_172_800],
+                        "indicators": {
+                            "quote": [{"close": [10.0, None, 12.5]}]
+                        },
+                    }
+                ],
+                "error": None,
+            }
+        }
+
+        with patch("app.market_data.requests.get", return_value=response):
+            currency, history = YahooMarketDataClient(max_retries=0).get_history(
+                "TEST.AS", 1_700_000_000, 1_700_172_800
+            )
+
+        self.assertEqual(currency, "EUR")
+        self.assertEqual(
+            history,
+            [
+                {"timestamp": 1_700_000_000, "price": 10.0},
+                {"timestamp": 1_700_172_800, "price": 12.5},
+            ],
+        )
+    def test_portfolio_history_endpoint_reconstructs_holdings(self):
+        now = int(time.time())
+        transaction_date = datetime.fromtimestamp(now - 30, timezone.utc).date().isoformat()
+        position = {
+            "name": "Test ETF",
+            "ticker": "IE00BK5BQT80 • TEST",
+            "shares": 2,
+            "costBasis": 18.0,
+            "transactions": [
+                {"date": transaction_date, "shares": 2}
+            ],
+        }
+        history = [
+            {"timestamp": now - 30, "price": 10.0},
+            {"timestamp": now - 10, "price": 12.5},
+        ]
+
+        with patch.object(main_module, "load_portfolio_data", return_value=[position]), patch.object(
+            main_module.market_data_client,
+            "get_history",
+            return_value=("EUR", history),
+        ):
+            result = main_module.get_portfolio_history("1m")
+
+        self.assertEqual(result["period"], "1m")
+        self.assertEqual(result["currency"], "EUR")
+        self.assertEqual(result["summary"]["high"], 25.0)
+        self.assertEqual(result["summary"]["low"], 20.0)
+        self.assertEqual(result["points"][-1], {"timestamp": now - 10, "value": 25.0})
+
+    def test_asset_history_endpoint_returns_position_details(self):
+        now = int(time.time())
+        position = {
+            "name": "Test ETF",
+            "ticker": "IE00BK5BQT80 • TEST",
+            "shares": 2,
+            "costBasis": 18.0,
+            "transactions": [
+                {
+                    "date": datetime.fromtimestamp(now - 30, timezone.utc).date().isoformat(),
+                    "shares": 2,
+                }
+            ],
+        }
+        history = [
+            {"timestamp": now - 30, "price": 10.0},
+            {"timestamp": now - 10, "price": 12.5},
+        ]
+
+        with patch.object(main_module, "load_portfolio_data", return_value=[position]), patch.object(
+            main_module.market_data_client,
+            "get_history",
+            return_value=("EUR", history),
+        ):
+            response = TestClient(main_module.app).get(
+                "/api/portfolio/history",
+                params={"period": "1m", "isin": "IE00BK5BQT80"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        result = response.json()
+        self.assertEqual(result["asset"]["market_symbol"], "VWRA.L")
+        self.assertEqual(result["asset"]["shares"], 2.0)
+        self.assertEqual(result["asset"]["cost_basis"], 18.0)
+        self.assertEqual(result["asset"]["unrealized_gain"], 7.0)
+        self.assertEqual(result["summary"]["end_value"], 25.0)
+
+    def test_asset_history_endpoint_rejects_unknown_isin(self):
+        with patch.object(main_module, "load_portfolio_data", return_value=[{"ticker": "IE00BK5BQT80 • TEST"}]):
+            with self.assertRaises(main_module.HTTPException) as context:
+                main_module.get_portfolio_history("1m", "UNKNOWN")
+
+        self.assertEqual(context.exception.status_code, 404)
+
+    def test_portfolio_history_rejects_unsupported_period(self):
+        with self.assertRaises(main_module.HTTPException) as context:
+            main_module.get_portfolio_history("all")
+
+        self.assertEqual(context.exception.status_code, 400)
 
     def test_finnhub_client_parses_quote_and_uses_api_key(self):
         response = Mock(status_code=200)
@@ -260,6 +374,36 @@ class ApplicationUnitTests(unittest.TestCase):
         self.assertEqual(result[0]["value"], 176.0)
         self.assertEqual(result[0]["changePercent"], 10.0)
 
+    def test_realtime_portfolio_uses_explicit_transaction_cost_basis(self):
+        position = {
+            "name": "Test ETF",
+            "ticker": "IE00BK5BQT80 • TEST",
+            "shares": 2,
+            "costBasis": 150.0,
+            "price": 100.0,
+            "value": 200.0,
+            "gain": 0.0,
+            "gainPct": 0.0,
+            "allocation": 100.0,
+            "badge": "test",
+            "init": "T",
+        }
+        quote = Quote(
+            symbol="VWRA.L",
+            price=110.0,
+            previous_close=100.0,
+            currency="EUR",
+            timestamp=1_700_000_000,
+        )
+        with patch.object(main_module, "load_portfolio_data", return_value=[position]), patch.object(
+            main_module.market_data_client, "get_quote", return_value=quote
+        ), patch.object(main_module.market_data_client, "get_fx_rate", return_value=1.0):
+            result = main_module.get_realtime_portfolio()
+
+        self.assertEqual(result[0]["value"], 220.0)
+        self.assertEqual(result[0]["gain"], 70.0)
+        self.assertEqual(result[0]["gainPct"], 46.67)
+
     def test_realtime_portfolio_returns_503_without_simulated_prices(self):
         position = {
             "name": "Test ETF",
@@ -329,7 +473,7 @@ class ApplicationUnitTests(unittest.TestCase):
         )
         diagnosis = architect_diagnose_connection({"state": "disconnected", "reconnect_attempts": 2})
         self.assertEqual(diagnosis["agent"], "architect")
-        self.assertIn("reconectar", diagnosis["action"])
+        self.assertIn("reconnect", diagnosis["action"])
         optimized = optimizer_calculate_position(
             {"shares": 2, "price": 100.0, "gain": 0.0}, valid_quote, 1.0
         )
@@ -362,7 +506,7 @@ class ApplicationUnitTests(unittest.TestCase):
                     "symbol": "VWRA.L",
                     "price": 110.0,
                     "previous_close": 100.0,
-                    "currency": "EUR",
+                    "currency": "USD",
                     "exchange": "GER",
                     "timestamp": 1_700_000_001,
                     "timestamp_iso": "2023-11-14T22:13:21+00:00",
@@ -378,6 +522,8 @@ class ApplicationUnitTests(unittest.TestCase):
         self.assertEqual(event["symbol"], "VWRA.L")
         self.assertEqual(event["position"]["dataStatus"], "realtime_push")
         self.assertEqual(event["position"]["marketPrice"], 110.0)
+        self.assertEqual(event["position"]["marketCurrency"], "EUR")
+        self.assertEqual(event["position"]["price"], 110.0)
         self.assertTrue(queue.empty())
 
     def test_frontend_uses_push_without_polling(self):
@@ -387,6 +533,13 @@ class ApplicationUnitTests(unittest.TestCase):
         self.assertNotIn("setInterval(refreshData", html)
         self.assertNotIn("fetch('/api/portfolio/realtime'", html)
         self.assertIn("/api/portfolio/realtime?provider=", html)
+        self.assertIn("minimumPriceFlashChangeEur = 0.01", html)
+        self.assertIn("priceFlashChangeRatio = 0.001", html)
+        self.assertIn("price-tick-up", html)
+        self.assertIn("price-tick-down", html)
+        self.assertIn("function highlightPriceMovement(stock)", html)
+        self.assertIn("pointermove", html)
+        self.assertIn("function openAssetHistory(isin)", html)
         self.assertIn("portfolio.tickerCatalog.finnhub.US.v1", html)
         self.assertIn("fetch('/api/catalog/refresh?exchange=US'", html)
         self.assertNotIn("fetch('/api/catalog')", html)

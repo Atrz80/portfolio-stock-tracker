@@ -40,7 +40,7 @@ fun DashboardScreen() {
         preferences.getString(CATALOG_KEY, null)?.let { json ->
             runCatching {
                 requireNotNull(catalogGson.fromJson(json, TickerCatalog::class.java)) {
-                    "La caché está vacía"
+                    "The cache is empty"
                 }
             }
         }
@@ -55,7 +55,7 @@ fun DashboardScreen() {
     var catalogError by remember {
         mutableStateOf(
             cachedCatalogResult?.exceptionOrNull()?.let {
-                "No se pudo leer la caché local: ${it.localizedMessage ?: "datos no válidos"}. Actualízala para reemplazarla."
+                "Could not read the local cache: ${it.localizedMessage ?: "invalid data"}. Refresh it to replace it."
             }
         )
     }
@@ -66,7 +66,7 @@ fun DashboardScreen() {
         try {
             stocks = apiService.getRealtimePortfolio(provider)
         } catch (e: Exception) {
-            priceError = "No se pudieron cargar los precios: ${e.localizedMessage ?: "error de conexión"}"
+            priceError = "Could not load prices: ${e.localizedMessage ?: "connection error"}"
         } finally {
             isLoadingPrices = false
         }
@@ -162,9 +162,9 @@ fun DashboardScreen() {
             }
 
             Divider()
-            Text("Catálogo local · $CATALOG_EXCHANGE", style = MaterialTheme.typography.titleMedium)
+            Text("Local catalog · $CATALOG_EXCHANGE", style = MaterialTheme.typography.titleMedium)
             Text(
-                catalog?.updatedAt?.let { "Actualizado: $it" } ?: "Sin catálogo guardado",
+                catalog?.updatedAt?.let { "Updated: $it" } ?: "No saved catalog",
                 style = MaterialTheme.typography.bodySmall
             )
             Row(
@@ -179,7 +179,7 @@ fun DashboardScreen() {
                             try {
                                 saveCatalog(apiService.getCatalog(CATALOG_EXCHANGE))
                             } catch (e: Exception) {
-                                catalogError = "No se pudo cargar el catálogo: ${e.localizedMessage ?: "error de conexión"}"
+                                catalogError = "Could not load the catalog: ${e.localizedMessage ?: "connection error"}"
                             } finally {
                                 isLoadingCatalog = false
                             }
@@ -188,7 +188,7 @@ fun DashboardScreen() {
                     enabled = !isLoadingCatalog,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Cargar catálogo")
+                    Text("Load catalog")
                 }
                 Button(
                     onClick = {
@@ -202,7 +202,7 @@ fun DashboardScreen() {
                                 }
                                 saveCatalog(response.toCatalog())
                             } catch (e: Exception) {
-                                catalogError = "No se pudo actualizar el catálogo: ${e.localizedMessage ?: "error de conexión"}"
+                                catalogError = "Could not refresh the catalog: ${e.localizedMessage ?: "connection error"}"
                             } finally {
                                 isLoadingCatalog = false
                             }
@@ -211,7 +211,7 @@ fun DashboardScreen() {
                     enabled = !isLoadingCatalog,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Actualizar catálogo")
+                    Text("Refresh catalog")
                 }
             }
             catalogError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -219,7 +219,7 @@ fun DashboardScreen() {
                 value = catalogSearch,
                 onValueChange = { catalogSearch = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Buscar símbolo, nombre, tipo o exchange (caché local)") },
+                label = { Text("Search symbol, name, type, or exchange (local cache)") },
                 singleLine = true
             )
             LazyColumn(
@@ -241,11 +241,11 @@ fun DashboardScreen() {
                     }
                 }
                 if (catalog != null && catalogEntries.isEmpty()) {
-                    item { Text("No hay coincidencias en la caché.") }
+                    item { Text("No matches in the cache.") }
                 }
             }
             Text(
-                "Análisis no disponible: el backend no expone /api/gemini/analyze.",
+                "Analysis unavailable: the backend does not expose /api/gemini/analyze.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -274,7 +274,7 @@ fun StockCard(stock: Stock) {
             Column {
                 Text(stock.name, style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "${stock.ticker}  •  ${stock.marketSymbol ?: "sin símbolo"}",
+                    "${stock.ticker}  •  ${stock.marketSymbol ?: "no symbol"}",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.Gray
                 )

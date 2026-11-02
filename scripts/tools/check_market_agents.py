@@ -2,9 +2,9 @@ import json
 import urllib.request
 
 agents = {
-    "analyst": "Valida el diseño de validación de precios push y timestamp.",
-    "architect": "Diagnostica la resiliencia del WebSocket push, heartbeat y reconexión.",
-    "optimizer": "Revisa el cálculo individual de valor, P&L y asignación por cada tick.",
+    "analyst": "Validate push price and timestamp validation design.",
+    "architect": "Assess WebSocket push resilience, heartbeat, and reconnection.",
+    "optimizer": "Review per-tick value, P&L, and allocation calculations.",
 }
 for agent, objective in agents.items():
     payload = json.dumps({"objective": objective, "agente_tipo": agent, "modo": "direct"}).encode("utf-8")

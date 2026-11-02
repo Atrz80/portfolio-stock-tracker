@@ -1,4 +1,4 @@
-# agency.py - Agencia con tres perfiles especializados sobre Freellmpool.
+# agency.py - Agency with three specialized profiles powered by Freellmpool.
 
 import os
 from typing import Any
@@ -28,19 +28,19 @@ llm = LLM(
 
 PROFILES: dict[str, dict[str, str]] = {
     'analyst': {
-        'role': 'Analista Financiero y de Software',
-        'goal': 'Validar cotizaciones push por símbolo y explicar cambios, variación, timestamp y estado de mercado.',
-        'backstory': 'Experto en análisis cuantitativo, validación de ticks y gestión de riesgos.',
+        'role': 'Financial and Software Analyst',
+        'goal': 'Validate push quotes by symbol and explain changes, price movement, timestamps, and market state.',
+        'backstory': 'Expert in quantitative analysis, tick validation, and risk management.',
     },
     'architect': {
-        'role': 'Arquitecto de Soluciones',
-        'goal': 'Diagnosticar la conexión push de mercado, reconexiones, heartbeat y difusión WebSocket.',
-        'backstory': 'Arquitecto senior especializado en streaming WebSocket y sistemas resilientes.',
+        'role': 'Solutions Architect',
+        'goal': 'Diagnose the market data push connection, reconnections, heartbeats, and WebSocket delivery.',
+        'backstory': 'Senior architect specializing in WebSocket streaming and resilient systems.',
     },
     'optimizer': {
-        'role': 'Optimizador de Portafolio',
-        'goal': 'Revisar valor, P&L, asignación y efectos de cada actualización individual de precio.',
-        'backstory': 'Especialista en optimización matemática y Cartera de activos en tiempo real.',
+        'role': 'Portfolio Optimizer',
+        'goal': 'Review value, P&L, allocation, and the impact of each individual price update.',
+        'backstory': 'Specialist in mathematical optimization and real-time portfolio management.',
     },
 }
 
@@ -63,15 +63,14 @@ def _run_direct(profile: dict[str, str], objective: str) -> str:
         {
             'role': 'system',
             'content': (
-                f"Actúa como {profile['role']}. {profile['backstory']} "
-                f"Objetivo: {profile['goal']} Responde en español y de forma clara."
+                f"Act as {profile['role']}. {profile['backstory']} "
+                f"Objective: {profile['goal']} Respond clearly in English."
             ),
         },
         {'role': 'user', 'content': objective},
     ]
-    # Use the resilient gateway client so every agent gets model rotation and
-    # bounded backoff on quota/payment/network failures.
-    result = freellmpool_client.chat_completar(
+    # Use the resilient gateway client for model rotation and bounded backoff.
+    result = freellmpool_client.chat_complete(
         objective,
         system_prompt=messages[0]['content'],
     )
@@ -82,8 +81,8 @@ def _run_direct(profile: dict[str, str], objective: str) -> str:
 
 def _run_crew(agent: Agent, objective: str) -> str:
     task = Task(
-        description='Analizar el siguiente objetivo: ' + objective,
-        expected_output='Reporte detallado con recomendaciones accionables.',
+        description='Analyze the following objective: ' + objective,
+        expected_output='Detailed report with actionable recommendations.',
         agent=agent,
     )
     crew = Crew(
@@ -99,13 +98,13 @@ def _run_crew(agent: Agent, objective: str) -> str:
 
 def run_agency_task(
     objective: str,
-    agente_tipo: str = 'analyst',
+    agent_type: str = 'analyst',
     mode: str | None = None,
 ) -> dict[str, Any]:
     selected_mode = (mode or AGENCY_MODE).lower()
     try:
-        session_id = session_manager.iniciar_sesion(agente_tipo)
-        agent_name = agente_tipo if agente_tipo in PROFILES else 'analyst'
+        session_id = session_manager.start_session(agent_type)
+        agent_name = agent_type if agent_type in PROFILES else 'analyst'
         profile = PROFILES[agent_name]
 
         if selected_mode == 'crew':
@@ -113,7 +112,7 @@ def run_agency_task(
         else:
             output_text = _run_direct(profile, objective)
 
-        session_manager.actualizar_sesion(session_id, MODEL)
+        session_manager.update_session(session_id, MODEL)
         return {
             'status': 'success',
             'objective': objective,
@@ -123,9 +122,9 @@ def run_agency_task(
             'result': output_text,
         }
     except Exception as exc:
-        session = session_manager.obtener_sesion_actual()
+        session = session_manager.get_current_session()
         if session:
-            session_manager.actualizar_sesion(session['id'], error=True)
+            session_manager.update_session(session['id'], error=True)
         return {
             'status': 'error',
             'message': str(exc),
@@ -134,5 +133,5 @@ def run_agency_task(
         }
 
 
-def obtener_estadisticas_agencia() -> dict[str, Any]:
-    return session_manager.obtener_estadisticas()
+def get_agency_statistics() -> dict[str, Any]:
+    return session_manager.get_statistics()

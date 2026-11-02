@@ -24,19 +24,19 @@ fun DashboardScreen() {
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // Cargar datos al iniciar
+    // Load data on startup.
     LaunchedEffect(Unit) {
         try {
             stocks = apiService.getRealtimePortfolio()
         } catch (e: Exception) {
-            errorMessage = "Error al conectar con el backend: ${e.localizedMessage}"
+            errorMessage = "Could not connect to the backend: ${e.localizedMessage}"
         }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Portfolio Financiero & Gemini") },
+                title = { Text("Financial Portfolio & Gemini") },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             )
         }
@@ -47,14 +47,14 @@ fun DashboardScreen() {
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
-            Text("Tus Activos en Tiempo Real", style = MaterialTheme.typography.titleMedium)
+            Text("Your assets in real time", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
 
             if (errorMessage != null) {
                 Text(errorMessage!, color = Color.Red)
             }
 
-            // Listado de Acciones
+            // Stock list.
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -67,7 +67,7 @@ fun DashboardScreen() {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Botón de Análisis IA con Gemini
+            // Gemini AI analysis button.
             Button(
                 onClick = {
                     scope.launch {
@@ -77,7 +77,7 @@ fun DashboardScreen() {
                             val response = apiService.analyzePortfolio(mapOf("stocks" to stocks))
                             analysisResult = response.analysis
                         } catch (e: Exception) {
-                            errorMessage = "Error en análisis Gemini: ${e.localizedMessage}"
+                            errorMessage = "Gemini analysis error: ${e.localizedMessage}"
                         } finally {
                             isLoading = false
                         }
@@ -89,11 +89,11 @@ fun DashboardScreen() {
                 if (isLoading) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
                 } else {
-                    Text("🤖 Analizar Portfolio con Gemini IA")
+                    Text("🤖 Analyze portfolio with Gemini AI")
                 }
             }
 
-            // Resultado de Gemini
+            // Gemini result.
             if (analysisResult != null) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Card(
@@ -101,7 +101,7 @@ fun DashboardScreen() {
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Análisis de Gemini:", style = MaterialTheme.typography.titleSmall)
+                        Text("Gemini analysis:", style = MaterialTheme.typography.titleSmall)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(analysisResult!, style = MaterialTheme.typography.bodyMedium)
                     }

@@ -17,12 +17,12 @@ config = Config()
 
 
 @Agentic
-class AgenciaIA:
-    """Clase principal que configura la agencia de IA con agentes especializados y memoria persistente."""
+class AIAgency:
+    """Main class that configures the AI agency with specialized agents and persistent memory."""
 
     def __init__(self):
-        """Inicializa la agencia con configuración de modelos, herramientas y memoria."""
-        # Configurar LLMs
+        """Initialize the agency with model, tool, and memory configuration."""
+        # Configure LLMs
         self.gemini_15_pro = ChatGoogleGenerativeAI(
             model="gemini-1.5-pro",
             temperature=0.7,
@@ -35,7 +35,7 @@ class AgenciaIA:
             google_api_key=config.google_api_key,
         )
 
-        # Memoria de conversación (CrewAI memory)
+        # Conversation memory (CrewAI memory)
         self.memory = ConversationBufferMemory(
             chat_memory=ChatMessageHistory(),
             memory_key="chat_history",
@@ -43,108 +43,108 @@ class AgenciaIA:
             output_key="output",
         )
 
-        # Crear agentes con herramientas básicas
-        self.arquitecto = Agent(
-            role="Arquitecto de Soluciones",
-            goal="Diseñar arquitecturas de software robustas y escalables",
+        # Create agents with basic tools
+        self.architect = Agent(
+            role="Solutions Architect",
+            goal="Design robust and scalable software architectures",
             backstory=(
-                "Eres un arquitecto senior con 15 años de experiencia en diseño de sistemas. "
-                "Siempre buscas la mejor solución técnica considerando escalabilidad, mantenibilidad y costos. "
-                "Recuerdas siempre el contexto de conversaciones anteriores."
+                "You are a senior architect with 15 years of experience in system design. "
+                "You always seek the best technical solution, considering scalability, maintainability, and cost. "
+                "Always remember the context of previous conversations."
             ),
             llm=self.gemini_15_pro,
             verbose=True,
             memory=True,
             allow_delegation=False,
             system_template=(
-                "Eres el Arquitecto de Soluciones. Usas tu memoria para recordar conversaciones pasadas "
-                "y mantener coherencia en los diseños. Responde siempre en español."
+                "You are the Solutions Architect. Use your memory to recall past conversations "
+                "and maintain consistency in your designs. Always respond in English."
             ),
         )
 
-        self.desarrollador = Agent(
-            role="Desarrollador Senior",
-            goal="Implementar soluciones de software de alta calidad",
+        self.developer = Agent(
+            role="Senior Developer",
+            goal="Implement high-quality software solutions",
             backstory=(
-                "Eres un desarrollador full-stack con experiencia en múltiples tecnologías y paradigmas. "
-                "Convierte los diseños arquitectónicos en código limpio y eficiente. "
-                "Recuerdas siempre el contexto de conversaciones anteriores."
+                "You are a full-stack developer experienced in multiple technologies and paradigms. "
+                "Turn architectural designs into clean, efficient code. "
+                "Always remember the context of previous conversations."
             ),
             llm=self.gemini_2_0_flash,
             verbose=True,
             memory=True,
             allow_delegation=False,
             system_template=(
-                "Eres el Desarrollador Senior. Usas tu memoria para recordar conversaciones pasadas "
-                "y mantener coherencia en las implementaciones. Responde siempre en español."
+                "You are the Senior Developer. Use your memory to recall past conversations "
+                "and maintain consistency in your implementations. Always respond in English."
             ),
         )
 
-    def ejecutar_tarea(self, description: str, agent_role: str = "Arquitecto", context: Optional[str] = None):
-        """Ejecuta una tarea con el agente especificado, guardando memoria del resultado."""
-        agente = self.arquitecto if agent_role == "Arquitecto" else self.desarrollador
+    def run_task(self, description: str, agent_role: str = "Architect", context: Optional[str] = None):
+        """Run a task with the specified agent and save the result to memory."""
+        selected_agent = self.architect if agent_role == "Architect" else self.developer
 
         task = Task(
             description=description,
-            agent=agente,
-            expected_output="Una solución detallada y bien estructurada",
+            agent=selected_agent,
+            expected_output="A detailed, well-structured solution",
             context=context if context else "",
         )
 
         crew = Crew(
-            agents=[agente],
+            agents=[selected_agent],
             tasks=[task],
             verbose=2,
             memory=True,
         )
 
-        resultado = crew.kickoff()
+        result = crew.kickoff()
 
-        # Guardar en memoria de conversación
+        # Save to conversation memory
         self.memory.save_context(
             {"input": description},
-            {"output": str(resultado)},
+            {"output": str(result)},
         )
 
-        return resultado
+        return result
 
-    def conversar(self, mensaje: str, agente: str = "Arquitecto") -> str:
-        """Conversación continua con memoria del contexto."""
-        # Recuperar memoria
+    def converse(self, message: str, agent_role: str = "Architect") -> str:
+        """Continue a conversation while retaining contextual memory."""
+        # Retrieve memory
         memories = self.memory.load_memory_variables({})
-        contexto = memories.get("chat_history", "")
+        context = memories.get("chat_history", "")
 
-        # Construir prompt con contexto
-        prompt_completo = f"Contexto anterior:\n{contexto}\n\nNuevo mensaje:\n{mensaje}"
+        # Build a prompt with context
+        complete_prompt = f"Previous context:\n{context}\n\nNew message:\n{message}"
 
-        # Ejecutar tarea
-        resultado = self.ejecutar_tarea(
-            description=prompt_completo,
-            agent_role=agente,
-            context=contexto,
+        # Run the task
+        result = self.run_task(
+            description=complete_prompt,
+            agent_role=agent_role,
+            context=context,
         )
 
-        return str(resultado)
+        return str(result)
 
 
-# Instancia global de la agencia
-agencia = AgenciaIA()
+# Global agency instance
+agency = AIAgency()
 
 if __name__ == "__main__":
-    print("🚀 Agencia IA inicializada correctamente")
-    print("Agentes disponibles: Arquitecto, Desarrollador")
-    print("Memoria CrewAI activa - conversaciones se guardan automáticamente")
+    print("🚀 AI agency initialized successfully")
+    print("Available agents: Architect, Developer")
+    print("CrewAI memory is active - conversations are saved automatically")
 
-    # Ejemplo de uso
-    print("\n=== Ejemplo de conversación ===")
-    resultado1 = agencia.conversar(
-        "Diseña una arquitectura para un sistema de recomendaciones en tiempo real",
-        agente="Arquitecto",
+    # Usage example
+    print("\n=== Conversation example ===")
+    result1 = agency.converse(
+        "Design an architecture for a real-time recommendation system",
+        agent_role="Architect",
     )
-    print(f"\n✅ Resultado 1:\n{resultado1[:200]}...")
+    print(f"\n✅ Result 1:\n{result1[:200]}...")
 
-    resultado2 = agencia.conversar(
-        "Ahora implementa ese diseño en Python usando FastAPI y Celery",
-        agente="Desarrollador",
+    result2 = agency.converse(
+        "Now implement that design in Python using FastAPI and Celery",
+        agent_role="Developer",
     )
-    print(f"\n✅ Resultado 2:\n{resultado2[:200]}...")
+    print(f"\n✅ Result 2:\n{result2[:200]}...")

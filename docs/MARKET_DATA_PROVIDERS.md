@@ -1,33 +1,32 @@
-# Fuentes de datos de mercado
+# Market Data Sources
 
-## Cotizaciones
+## Quotes
 
-- **Yahoo Finance** es la fuente predeterminada. El backend sirve snapshots y
-  la web recibe actualizaciones push por `/ws/market`.
-- **Finnhub.io** consulta cotizaciones REST al seleccionar esa fuente y al
-  solicitar una actualización de precios. No se mezcla con los eventos push
-  de Yahoo.
-- Finnhub requiere `FINNHUB_API_KEY` en el `.env` global de
-  `E:\Proyectos\ai-workstation`. No guardes la clave en el repositorio ni en
-  `.env.example`; el ejemplo solo contiene un valor de ejemplo.
-- Reinicia FastAPI después de añadir o cambiar la variable para que el cliente
-  Finnhub la vuelva a cargar.
+- **Yahoo Finance** is the default source. The backend serves snapshots, and
+  the web app receives push updates through `/ws/market`.
+- **Finnhub.io** fetches quotes via REST when this source is selected and when
+  a price refresh is requested. It is not mixed with Yahoo push events.
+- Finnhub requires `FINNHUB_API_KEY` in the global `.env` at
+  `E:\Proyectos\ai-workstation`. Do not store the key in the repository or
+  `.env.example`; the example contains only a placeholder value.
+- Restart FastAPI after adding or changing the variable so the Finnhub client
+  reloads it.
 
-## Catálogo de tickers
+## Ticker Catalog
 
-El catálogo consultable corresponde al mercado USA de Finnhub (`exchange=US`).
-La app web lo guarda en `localStorage` y Android en `SharedPreferences`.
-Buscar filtra la copia local y no llama a la API. El catálogo no se descarga
-ni se renueva en segundo plano: el usuario debe pulsar **Actualizar catálogo**.
+The searchable catalog corresponds to Finnhub's US market (`exchange=US`).
+The web app stores it in `localStorage`, and Android in `SharedPreferences`.
+Search filters the local copy and does not call the API. The catalog is not
+downloaded or refreshed in the background: the user must select **Refresh
+catalog**.
 
-El backend persiste la última copia en `storage/ticker_catalog.json`.
-`GET /api/catalog?exchange=US` solo lee esa copia; `POST
-/api/catalog/refresh?exchange=US` solicita una versión nueva a Finnhub. Así,
-cada dispositivo puede cargar la copia del backend o actualizarla y conservarla
-localmente.
+The backend persists the latest copy in `storage/ticker_catalog.json`.
+`GET /api/catalog?exchange=US` only reads that copy; `POST
+/api/catalog/refresh?exchange=US` requests a new version from Finnhub. This
+allows each device to load the backend copy or refresh it and retain it locally.
 
 ## Android
 
-La app Compose se conecta al backend de desarrollo en `http://10.0.2.2:8000/`
-(emulador Android). En un dispositivo físico, configura una URL accesible desde
-ese dispositivo antes de probarlo.
+The Compose app connects to the development backend at
+`http://10.0.2.2:8000/` (Android emulator). On a physical device, configure a
+URL that is accessible from that device before testing.

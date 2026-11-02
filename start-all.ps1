@@ -1,4 +1,4 @@
-# start-all.ps1 - Inicia Freellmpool y FastAPI, y espera a que estén healthy.
+# start-all.ps1 - Start Freellmpool and FastAPI, then wait for them to be healthy.
 [CmdletBinding()]
 param(
     [int]$GatewayPort = 8080,
@@ -19,13 +19,13 @@ $Freellmpool = Join-Path $RuntimeRoot 'venv\Scripts\freellmpool.exe'
 $GlobalEnv = Join-Path $GlobalHome '.env'
 
 if (-not (Test-Path -LiteralPath $GlobalEnv)) {
-    throw "No se encontró la configuración global de IA: $GlobalEnv"
+    throw "The global AI configuration was not found: $GlobalEnv"
 }
 if (-not (Test-Path -LiteralPath $Python)) {
-    throw "No se encontró el runtime Python global en E: $Python"
+    throw "The global Python runtime was not found on E: $Python"
 }
 if (-not (Test-Path -LiteralPath $Freellmpool)) {
-    throw "No se encontró Freellmpool en el runtime global de E: $Freellmpool"
+    throw "Freellmpool was not found in the global runtime on E: $Freellmpool"
 }
 
 # Load the shared AI configuration into this process without printing secrets.
@@ -74,7 +74,7 @@ function Wait-HttpReady {
         }
         Start-Sleep -Milliseconds 500
     }
-    Write-Host "[ERROR] $Name no respondió en $Url tras $TimeoutSeconds segundos" -ForegroundColor Red
+    Write-Host "[ERROR] $Name did not respond at $Url within $TimeoutSeconds seconds" -ForegroundColor Red
     return $false
 }
 
@@ -90,7 +90,7 @@ function Save-Manifest {
 
 $freellmpoolCommand = Get-Command $Freellmpool -ErrorAction SilentlyContinue
 if (-not $freellmpoolCommand) {
-    throw "No se encontró Freellmpool en el runtime global de E: $Freellmpool"
+    throw "Freellmpool was not found in the global runtime on E: $Freellmpool"
 }
 
 if (Test-Path $ManifestPath) {
@@ -98,15 +98,15 @@ if (Test-Path $ManifestPath) {
 }
 
 if (Test-PortListening -Port $GatewayPort) {
-    throw "El puerto $GatewayPort ya está ocupado. Detén el servicio existente antes de continuar."
+    throw "Port $GatewayPort is already in use. Stop the existing service before continuing."
 }
 if (Test-PortListening -Port $ApiPort) {
-    throw "El puerto $ApiPort ya está ocupado. Detén el servicio existente antes de continuar."
+    throw "Port $ApiPort is already in use. Stop the existing service before continuing."
 }
 
 $services = @()
 
-Write-Host '[...] Iniciando Freellmpool...' -ForegroundColor Cyan
+Write-Host '[...] Starting Freellmpool...' -ForegroundColor Cyan
 $gatewayOut = Join-Path $LogDir 'freellmpool.out.log'
 $gatewayErr = Join-Path $LogDir 'freellmpool.err.log'
 $gateway = Start-Process -FilePath $freellmpoolCommand.Source `
@@ -118,10 +118,10 @@ Save-Manifest -Services $services
 
 if (-not (Wait-HttpReady -Name 'Freellmpool' -Url "http://127.0.0.1:$GatewayPort/v1/models")) {
     Save-Manifest -Services $services
-    throw "El gateway no inició. Revisa $gatewayErr"
+    throw "The gateway did not start. Check $gatewayErr"
 }
 
-Write-Host '[...] Iniciando FastAPI...' -ForegroundColor Cyan
+Write-Host '[...] Starting FastAPI...' -ForegroundColor Cyan
 $apiOut = Join-Path $LogDir 'fastapi.out.log'
 $apiErr = Join-Path $LogDir 'fastapi.err.log'
 $api = Start-Process -FilePath $Python `
@@ -134,7 +134,7 @@ Save-Manifest -Services $services
 if (-not (Wait-HttpReady -Name 'FastAPI' -Url "http://127.0.0.1:$ApiPort/")) {
     Save-Manifest -Services $services
     & (Join-Path $WorkDir 'stop-all.ps1') -Quiet
-    throw "FastAPI no inició. Revisa $apiErr"
+    throw "FastAPI did not start. Check $apiErr"
 }
 
 foreach ($service in $services) {
@@ -148,8 +148,8 @@ foreach ($service in $services) {
 
 Save-Manifest -Services $services
 Write-Host ''
-Write-Host 'Sistema iniciado correctamente:' -ForegroundColor Green
+Write-Host 'System started successfully:' -ForegroundColor Green
 Write-Host "  - Freellmpool: http://127.0.0.1:$GatewayPort/v1"
 Write-Host "  - FastAPI:     http://127.0.0.1:$ApiPort"
 Write-Host "  - Manifiesto:  $ManifestPath"
-Write-Host 'Para detenerlo: .\stop-all.ps1' -ForegroundColor Cyan
+Write-Host 'To stop it: .\stop-all.ps1' -ForegroundColor Cyan

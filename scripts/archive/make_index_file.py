@@ -1,7 +1,7 @@
 import os
 
 html_part1 = """<!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -26,13 +26,11 @@ html_part1 = """<!DOCTYPE html>
         <div class="flex items-center space-x-3">
             <div id="google-auth-container">
                 <button onclick="loginWithGoogle()" id="google-login-btn" class="px-4 py-2 bg-white text-gray-900 hover:bg-gray-100 text-sm font-semibold rounded-lg transition shadow flex items-center gap-2">
-                    <i class="fa-brands fa-google text-red-500"></i> Iniciar con Google
+                    <i class="fa-brands fa-google text-red-500"></i> Sign in with Google
                 </button>
             </div>
             <button onclick="setViewMode('desktop')" id="btn-desktop" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-sm font-semibold rounded-lg transition shadow"><i class="fa-solid fa-desktop mr-2"></i> Desktop</button>
-            <button onclick="setViewMode('mobile')" id="btn-mobile" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-sm font-semibold rounded-lg transition border border-gray-700"><i class="fa-solid fa-mobile-screen mr-2"></i> APK Móvil</button>
+            <button onclick="setViewMode('mobile')" id="btn-mobile" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-sm font-semibold rounded-lg transition border border-gray-700"><i class="fa-solid fa-mobile-screen mr-2"></i> Mobile APK</button>
         </div>
     </header>
 """
-
-

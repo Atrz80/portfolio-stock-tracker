@@ -1,51 +1,55 @@
-# CLINE_OPENAI_COMPATIBLE.md - Configuración de Cline para OpenAI Compatible con Freellmpool
+# CLINE_OPENAI_COMPATIBLE.md - Cline's OpenAI-Compatible Configuration for Freellmpool
 
-## Configuración para Cline (VS Code Extension)
+## Cline Configuration (VS Code Extension)
 
-Para que Cline funcione con freellmpool y rotación automática de modelos, configura Cline como **OpenAI Compatible**:
+To make Cline work with freellmpool and automatic model rotation, configure
+Cline as **OpenAI Compatible**:
 
-### Paso 1: Abrir configuración de Cline
-En VS Code, abre la paleta de comandos (Ctrl+Shift+P) y busca: `Cline: Open Settings`
+### Step 1: Open Cline Settings
+In VS Code, open the Command Palette (Ctrl+Shift+P) and search for:
+`Cline: Open Settings`
 
-### Paso 2: Configurar como OpenAI Compatible
-Configura los siguientes valores en Cline:
+### Step 2: Configure OpenAI Compatible
+Set the following values in Cline:
 
-| Campo | Valor |
+| Field | Value |
 |-------|-------|
 | Provider | OpenAI Compatible |
 | Base URL | `http://localhost:8080/v1` |
-| API Key | Cualquier valor no vacío (la autenticación local está desactivada) |
-| Model | `auto` (usa rotación automática) |
+| API Key | Any non-empty value (local authentication is disabled) |
+| Model | `auto` (uses automatic rotation) |
 
-### Paso 3: Modelos disponibles en freellmpool
-freellmpool rota automáticamente entre estos modelos:
-- `auto` - Selección automática
-- `gemini-1.5-flash` - Modelo rápido de Gemini
-- `agent` - Optimizado para agentes
-- `spread` - Balanceado
-- `fast` - Respuesta rápida
+### Step 3: Models available in freellmpool
+freellmpool automatically rotates among these models:
+- `auto` - Automatic selection
+- `gemini-1.5-flash` - Fast Gemini model
+- `agent` - Optimized for agents
+- `spread` - Balanced
+- `fast` - Fast response
 
-### Paso 4: Rotación automática
-El cliente `app/freellmpool_client.py` maneja la rotación automática. La configuración compartida reside en `E:\Proyectos\ai-workstation\.env` y se carga mediante `app/config.py`:
-- Si un modelo falla (agotamiento de tokens, rate limit, etc.), prueba el siguiente
-- Implementa retry exponencial con backoff
-- Registra qué modelos tuvieron éxito
+### Step 4: Automatic rotation
+The `app/freellmpool_client.py` client handles automatic rotation. Shared
+configuration is located in `E:\Proyectos\ai-workstation\.env` and loaded by
+`app/config.py`:
+- If a model fails (token exhaustion, rate limit, etc.), it tries the next one
+- Implements exponential retry with backoff
+- Logs which models succeeded
 
-## Uso con el script start_all.bat
+## Using the start_all.bat script
 
-Ejecutar `start_all.bat` arrancará:
-1. FastAPI backend (puerto 8000)
-2. Verificará freellmpool (puerto 8080)
-3. Mostrará un menú con opciones de chat, agencia, memoria y estadísticas
+Running `start_all.bat` will:
+1. Start the FastAPI backend (port 8000)
+2. Check freellmpool (port 8080)
+3. Show a menu with chat, agency, memory, and statistics options
 
-Al seleccionar **Salir (opción 6)**, se detendrán todos los procesos.
+Selecting **Exit (option 6)** stops all processes.
 
-## Archivos clave
-- `app/freellmpool_client.py` - Cliente con rotación automática y retry
-- `app/session_manager.py` - Gestión de sesiones y memoria compartida
-- `app/agency.py` - 3 agentes especializados (analyst, architect, optimizer)
-- `app/chat.py` - Chat con memoria persistente
-- `app/agent_memory.py` - Memoria persistente remember/recall
-- `app/main.py` - FastAPI con endpoints REST
-- `main.py` - Lanzador compatible con `uvicorn main:app`
-- `.env` - Variables de entorno
+## Key files
+- `app/freellmpool_client.py` - Client with automatic rotation and retry
+- `app/session_manager.py` - Session and shared-memory management
+- `app/agency.py` - 3 specialized agents (analyst, architect, optimizer)
+- `app/chat.py` - Chat with persistent memory
+- `app/agent_memory.py` - Persistent remember/recall memory
+- `app/main.py` - FastAPI with REST endpoints
+- `main.py` - Launcher compatible with `uvicorn main:app`
+- `.env` - Environment variables

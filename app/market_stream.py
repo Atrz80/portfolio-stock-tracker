@@ -190,7 +190,7 @@ class MarketStreamService:
         isin = self._position_isin(position)
         symbol = YAHOO_TICKER_MAP.get(isin)
         if not symbol:
-            raise MarketDataError(f"No existe un ticker de mercado configurado para {isin}")
+            raise MarketDataError(f"No market ticker is configured for {isin}")
         return symbol
 
     async def start(self) -> None:
@@ -227,11 +227,16 @@ class MarketStreamService:
 
     async def _on_quote(self, raw_quote: dict[str, Any]) -> None:
         symbol = raw_quote["symbol"]
+        snapshot_quote = self._quotes.get(symbol)
         quote = Quote(
             symbol=symbol,
             price=raw_quote["price"],
             previous_close=raw_quote.get("previous_close"),
-            currency=raw_quote.get("currency", "USD"),
+            currency=(
+                snapshot_quote.currency
+                if snapshot_quote
+                else raw_quote.get("currency", "USD")
+            ),
             timestamp=raw_quote.get("timestamp"),
             source="Yahoo Finance",
             market_state=raw_quote.get("market_state", "UNKNOWN"),

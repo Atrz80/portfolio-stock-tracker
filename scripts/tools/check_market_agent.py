@@ -1,4 +1,4 @@
-"""Valida un agente CrewAI concreto contra el gateway local."""
+"""Validate a specific CrewAI agent against the local gateway."""
 
 from __future__ import annotations
 
@@ -8,15 +8,15 @@ import time
 import urllib.request
 
 OBJECTIVES = {
-    "analyst": "Valida el diseño de validación de precios push y timestamp.",
-    "architect": "Diagnostica la resiliencia del WebSocket push, heartbeat y reconexión.",
-    "optimizer": "Revisa el cálculo individual de valor, P&L y asignación por cada tick.",
+    "analyst": "Validate push price and timestamp validation design.",
+    "architect": "Assess WebSocket push resilience, heartbeat, and reconnection.",
+    "optimizer": "Review per-tick value, P&L, and allocation calculations.",
 }
 
 
 def main() -> int:
     if len(sys.argv) != 2 or sys.argv[1] not in OBJECTIVES:
-        print(f"Uso: {sys.argv[0]} <analyst|architect|optimizer>")
+        print(f"Usage: {sys.argv[0]} <analyst|architect|optimizer>")
         return 2
     agent = sys.argv[1]
     payload = json.dumps(

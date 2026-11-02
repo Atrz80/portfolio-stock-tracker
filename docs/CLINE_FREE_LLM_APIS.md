@@ -1,34 +1,33 @@
-# Probar APIs gratuitas con Cline o Roo Code
+# Trying Free APIs with Cline or Roo Code
 
-[`awesome-free-llm-apis`](https://github.com/mnfst/awesome-free-llm-apis) es
-un catálogo de servicios independientes, no una API, proxy ni extensión que se
-pueda instalar para habilitar todos sus proveedores a la vez. Para probar uno
-hay que configurar en Cline/Roo Code su URL compatible, modelo y credencial si
-la requiere. La compatibilidad con herramientas y streaming varía por
-proveedor.
+[`awesome-free-llm-apis`](https://github.com/mnfst/awesome-free-llm-apis) is
+a catalog of independent services, not an API, proxy, or extension that can be
+installed to enable all its providers at once. To try one, configure its
+compatible URL, model, and credentials in Cline/Roo Code if required. Tool and
+streaming compatibility varies by provider.
 
-## Configuración probada: Kilo Code
+## Tested configuration: Kilo Code
 
-La extensión Cline está instalada en este entorno. Se probó el endpoint de Kilo
-con una petición compatible con OpenAI y el modelo respondió sin credenciales.
-En los ajustes de Cline, selecciona **OpenAI Compatible** y configura:
+Cline is installed in this environment. Kilo's endpoint was tested with an
+OpenAI-compatible request, and the model responded without credentials. In
+Cline settings, select **OpenAI Compatible** and configure:
 
 - **Base URL:** `https://api.kilo.ai/api/gateway`
 - **Model ID:** `kilo-auto/free`
-- **API key:** déjala vacía; no se necesita para este endpoint.
+- **API key:** leave it blank; it is not required for this endpoint.
 
-Guarda los ajustes y prueba primero con una petición sencilla. El modelo es un
-router gratuito y puede seleccionar modelos distintos; disponibilidad, límites
-y soporte de herramientas pueden cambiar. La lista vigente está en
+Save the settings and start with a simple request. The model is a free router
+that may select different models; availability, limits, and tool support may
+change. The current list is at
 [`awesome-free-llm-apis`](https://github.com/mnfst/awesome-free-llm-apis).
 
-Si configuras un proveedor que sí requiere clave, guárdala en el almacén seguro
-de la extensión; no la añadas al repositorio, `.vscode/settings.json` ni a la
-configuración de la aplicación.
+If you configure a provider that does require a key, store it in the
+extension's secure storage; do not add it to the repository,
+`.vscode/settings.json`, or the application configuration.
 
-Este entorno tiene instalada la extensión **Roo Code**. Para configurar una
-instalación de Cline en vez de Roo Code, ambas extensiones pueden configurarse
-por separado.
+The **Roo Code** extension is installed in this environment. To configure a
+Cline installation instead of Roo Code, the two extensions can be configured
+separately.
 
-La configuración existente de Freellmpool es independiente y está documentada
-en [CLINE_OPENAI_COMPATIBLE.md](./CLINE_OPENAI_COMPATIBLE.md).
+The existing Freellmpool configuration is separate and documented in
+[CLINE_OPENAI_COMPATIBLE.md](./CLINE_OPENAI_COMPATIBLE.md).

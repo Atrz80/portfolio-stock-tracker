@@ -52,7 +52,7 @@ html_part3 = """
                             <td class="p-4 text-gray-300">${s.name}</td>
                             <td class="p-4 font-semibold">$${s.price.toFixed(2)}</td>
                             <td class="p-4 ${colorClass} font-medium"><i class="fa-solid ${icon} mr-1"></i> ${s.change_percent > 0 ? '+' : ''}${s.change_percent}%</td>
-                            <td class="p-4 text-right"><span class="px-2.5 py-1 bg-gray-800 text-xs rounded-lg text-gray-300">Activo</span></td>
+                            <td class="p-4 text-right"><span class="px-2.5 py-1 bg-gray-800 text-xs rounded-lg text-gray-300">Active</span></td>
                         </tr>
                     `;
 
@@ -77,7 +77,7 @@ html_part3 = """
                 document.getElementById('total-pl-pct').innerHTML = `<i class="fa-solid fa-arrow-trend-up"></i> +5.00%`;
 
             } catch (err) {
-                console.error("Error al actualizar datos:", err);
+                console.error("Error updating data:", err);
             }
         }
 

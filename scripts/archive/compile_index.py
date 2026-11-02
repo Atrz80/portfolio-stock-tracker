@@ -9,4 +9,4 @@ full_html = html_part1 + html_part2 + html_part3
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(full_html)
 
-print("✅ index.html compilado y generado con éxito.")
+print("✅ index.html compiled and generated successfully.")

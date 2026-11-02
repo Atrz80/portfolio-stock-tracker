@@ -55,11 +55,11 @@ def decode_yahoo_pricing(encoded_message: str) -> dict[str, Any]:
         message = PricingData()
         message.ParseFromString(payload)
     except Exception as exc:
-        raise MarketDataError(f"No se pudo decodificar el pricing push de Yahoo: {exc}") from exc
+        raise MarketDataError(f"Could not decode Yahoo's pricing push: {exc}") from exc
 
     symbol = str(message.id or "").upper()
     if not symbol:
-        raise MarketDataError("Yahoo Finance envió un pricing push sin símbolo")
+        raise MarketDataError("Yahoo Finance sent a pricing push without a symbol")
     raw_timestamp = int(message.time) if message.HasField("time") else None
     timestamp = raw_timestamp // 1000 if raw_timestamp is not None else None
     return {

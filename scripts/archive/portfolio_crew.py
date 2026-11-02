@@ -3,7 +3,7 @@ import sys
 import time
 import requests
 
-# Forzar codificación UTF-8 para evitar errores con emojis en Windows
+# Force UTF-8 encoding to avoid emoji-related errors on Windows
 os.environ["PYTHONIOENCODING"] = "utf-8"
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -15,15 +15,15 @@ from crewai import Agent, Crew, Process, Task
 
 load_dotenv()
 
-# Asegurar que OPENROUTER_API_KEY esté disponible para CrewAI / LiteLLM
+# Ensure OPENROUTER_API_KEY is available to CrewAI / LiteLLM
 if not os.getenv("OPENROUTER_API_KEY") and os.getenv("OPENAI_API_KEY"):
     os.environ["OPENROUTER_API_KEY"] = os.getenv("OPENAI_API_KEY")
 
-# Configurar LLM basado en OpenRouter para CrewAI
+# Configure an OpenRouter-based LLM for CrewAI
 llm = os.getenv("MODEL", "openrouter/deepseek/deepseek-chat")
 
 def fetch_github_issues():
-    """Obtiene las incidencias abiertas del repositorio GitHub con reintentos exponenciales."""
+    """Fetch open GitHub repository issues using exponential backoff."""
     repo = "Atrz80/portfolio-stock-tracker"
     url = f"https://api.github.com/repos/{repo}/issues?state=open"
     headers = {"Accept": "application/vnd.github+json"}
@@ -39,22 +39,22 @@ def fetch_github_issues():
             if response.status_code == 200:
                 issues = response.json()
                 if not issues:
-                    return "No hay incidencias abiertas actualmente en el repositorio."
+                    return "There are currently no open issues in the repository."
                 return "\n".join([f"- Issue #{i.get('number')}: {i.get('title')}\n  Body: {i.get('body')}" for i in issues])
             elif response.status_code == 429:
-                print(f"⚠️ Rate limit alcanzado (429). Reintentando en {delay}s...")
+                print(f"⚠️ Rate limit reached (429). Retrying in {delay}s...")
                 time.sleep(delay)
                 delay *= 2
             else:
-                return f"Error al consultar GitHub API: {response.status_code} - {response.text}"
+                return f"Error querying the GitHub API: {response.status_code} - {response.text}"
         except Exception as e:
             if attempt == retries - 1:
-                return f"Excepción al conectar con GitHub API: {e}"
+                return f"Exception connecting to the GitHub API: {e}"
             time.sleep(delay)
             delay *= 2
-    return "No se pudieron obtener las incidencias de GitHub debido a limitaciones de red o cuota."
+    return "Could not retrieve GitHub issues due to network or quota limits."
 
-# --- 1. Definir Agentes Especializados ---
+# --- 1. Define Specialized Agents ---
 
 expert_developer = Agent(
     role="Expert Software Developer",
@@ -80,7 +80,7 @@ github_resolver = Agent(
     llm=llm,
 )
 
-# --- 2. Definir Tareas del Crew ---
+# --- 2. Define Crew Tasks ---
 
 dev_task = Task(
     description=(
@@ -109,7 +109,7 @@ issue_resolution_task = Task(
     agent=github_resolver,
 )
 
-# --- 3. Ensamblar el Crew ---
+# --- 3. Assemble the Crew ---
 
 portfolio_crew = Crew(
     agents=[expert_developer, expert_tester, github_resolver],
@@ -119,13 +119,12 @@ portfolio_crew = Crew(
 )
 
 if __name__ == "__main__":
-    print("Iniciando CrewAI con el equipo especializado (Developer, Tester, GitHub Incident Resolver)...")
+    print("Starting CrewAI with the specialized team (Developer, Tester, GitHub Incident Resolver)...")
     try:
         result = portfolio_crew.kickoff()
         print("\n\n########################")
-        print("## Resultado del Crew ##")
+        print("## Crew Result ##")
         print("########################\n")
         print(result)
     except Exception as e:
-        print(f"❌ Error durante la ejecución del CrewAI: {e}")
-
+        print(f"❌ Error during CrewAI execution: {e}")

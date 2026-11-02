@@ -1,78 +1,102 @@
-# MEMORY.md - Estado verificado de Portfolio Stock Tracker
+# MEMORY.md - Verified Status of Portfolio Stock Tracker
 
-## 🎯 Objetivo
-Aplicación de seguimiento de portfolio con frontend web, backend FastAPI, memoria persistente y acceso a IA mediante Freellmpool/CrewAI.
+## 🎯 Goal
+Portfolio tracking application with a web frontend, FastAPI backend,
+persistent memory, and AI access through Freellmpool/CrewAI.
 
-## 🏗️ Arquitectura activa
-- **Frontend**: `index.html` (HTML/CSS/Vanilla JS) en la raíz.
-- **Backend**: paquete `app/`; `app/main.py` contiene FastAPI y la raíz `main.py` es un lanzador compatible para `uvicorn main:app`.
-- **Gateway IA**: `freellmpool proxy` en `127.0.0.1:8080` (`/v1`).
-- **Persistencia de portfolio**: `portfolio.json` en la raíz.
-- **Memoria de agentes**: JSONL en `storage/crewai_memory/memory.jsonl`.
-- **Sesiones**: `storage/sessions/`.
-- **Orquestación**: `app/agency.py` con `crewai.LLM`; modo directo por defecto y modo `crew` opt-in.
-- **Tests**: `tests/`; scripts históricos en `scripts/archive/` y utilidades en `scripts/tools/`.
-- **Documentación técnica**: `docs/`.
-- **Ubicación canónica**: `E:\Proyectos\portfolio-stock-tracker` (remoto `https://github.com/Atrz80/portfolio-stock-tracker.git`).
-- **Entorno global de IA**: `E:\Proyectos\ai-workstation` (reglas, secretos compartidos y framework; no contiene código de este proyecto).
+## User preferences
+- Always write code comments, docstrings, UI text, and application messages in
+  English. The user prefers to communicate in Spanish.
 
-## ✅ Validación realizada (01/11/2026)
-- [x] `start-all.bat` inicia realmente Freellmpool + FastAPI y espera health checks HTTP.
-- [x] `stop-all.ps1` detiene únicamente los árboles de procesos registrados en `.services.json`.
-- [x] `/`, `/api/portfolio`, `/memory/remember`, `/memory/recall`, `/chat` y `/agency/run` respondieron correctamente.
-- [x] Memoria persistida y recuperada entre requests.
-- [x] Chat real validado contra Freellmpool (HTTP 200).
-- [x] Agencia validada en modo directo (HTTP 200).
-- [x] Compilación de módulos principales con Python 3.11.9.
-- [x] Reorganización del repositorio en `app/`, `tests/`, `scripts/` y `docs/` sin romper `uvicorn main:app`.
-- [x] Rutas de portfolio, memoria y sesiones ancladas a la raíz del proyecto, independientes del directorio de trabajo.
-- [x] 7 pruebas `unittest` aisladas superadas con Python de `E:`: memoria, fallback HTTP 429, endpoints, cliente de mercado, conversión a EUR, fallo 503 sin simulación y cobertura ISIN/ticker.
-- [x] Proyecto trasladado a su ubicación canónica bajo `E:\Proyectos`, con remoto GitHub preservado.
-- [x] Configuración global de IA separada en `E:\Proyectos\ai-workstation`; el proyecto carga el `.env` global sin duplicar secretos.
-- [x] Variables globales instaladas en el entorno de usuario de Windows.
-- [x] Runtime global instalado en `E:\Proyectos\ai-workstation\runtime`: Python 3.11, uv, FastAPI, CrewAI y Freellmpool; los procesos del proyecto se ejecutan desde binarios de `E:`.
-- [x] Datos del dashboard obtenidos mediante Yahoo Finance WebSocket push (`wss://streamer.finance.yahoo.com`), decodificando pricing protobuf y distribuyendo cada cambio solo por símbolo.
-- [x] Eliminados el polling de 5 segundos y el fallback aleatorio: el frontend consume `/ws/market`, actualiza una única fila por `quote_update` y reconecta con backoff.
-- [x] Streaming real validado con dos eventos push consecutivos de `BTC-USD`; los activos del portfolio se muestran como `snapshot` cuando sus mercados están cerrados hasta recibir un tick.
-- [x] Agentes instalados divididos por función: `analyst` valida ticks, `architect` diagnostica push/reconexión y `optimizer` revisa valor/P&L/asignación.
-- [x] Tickers ISIN verificados: `VWRA.L`, `SEMI.AS`, `UST.PA`, `EIMI.L`, `6701.T`, `4204.T`, `IUSN.DE` y `5016.T`.
-- [x] E2E validado: FastAPI `:8000`, Freellmpool `:8080`, dashboard, 8 posiciones de mercado y chat real (`OK`).
-- [x] Selector web Yahoo/Finnhub, persistencia de preferencia y refresco manual de precios integrados; el navegador validó ocho posiciones y la vista móvil a 390 px sin desbordamiento horizontal.
-- [x] Catálogo Finnhub USA con refresco explícito y búsqueda local; probado con catálogo simulado en el navegador y persistencia tras recargar.
-- [x] 17 pruebas unitarias, compilación Python y contrato HTTP del catálogo superados.
-- [x] App Android actualizada con proveedor persistido y caché/búsqueda local; APK debug compilado con `gradlew.bat assembleDebug`.
-- [x] Wrapper Gradle 8.7 generado y probado en Windows; se alineó Kotlin 1.9.22 con Compose Compiler 1.5.8 para compilar correctamente.
-- [x] Cline 4.1.26 instalado junto a Roo Code; endpoint Kilo `kilo-auto/free` probado sin clave y valores documentados. La selección del proveedor en la interfaz de Cline aún requiere acción manual.
-- [x] `Abrir Portfolio Stock Tracker.bat` espera hasta 180 s al arranque en frío, inicia backend y gateway, abre el dashboard en una ventana aislada de Chrome/Edge y los detiene al cerrar esa ventana o pulsar Ctrl+C; el ciclo completo quedó probado.
-- [x] `stop-all.ps1` valida manifiesto, comando, puerto y PID antes de parar procesos; `-WhatIf` confirmó el árbol previsto sin interrumpir los servicios.
-- [x] `.clinerules` eliminado del proyecto: las reglas globales viven solo en `E:\Proyectos\ai-workstation\.clinerules`.
+## 🏗️ Active Architecture
+- **Frontend**: `index.html` (HTML/CSS/Vanilla JS) at the repository root.
+- **Backend**: `app/` package; `app/main.py` contains FastAPI, and the root
+  `main.py` is a launcher compatible with `uvicorn main:app`.
+- **AI gateway**: `freellmpool proxy` at `127.0.0.1:8080` (`/v1`).
+- **Portfolio persistence**: `portfolio.json` at the repository root.
+- **Agent memory**: JSONL in `storage/crewai_memory/memory.jsonl`.
+- **Sessions**: `storage/sessions/`.
+- **Orchestration**: `app/agency.py` with `crewai.LLM`; direct mode by default
+  and `crew` mode opt-in.
+- **Tests**: `tests/`; historical scripts in `scripts/archive/` and utilities
+  in `scripts/tools/`.
+- **Technical documentation**: `docs/`.
+- **Canonical location**: `E:\Proyectos\portfolio-stock-tracker` (remote
+  `https://github.com/Atrz80/portfolio-stock-tracker.git`).
+- **Global AI environment**: `E:\Proyectos\ai-workstation` (rules, shared
+  secrets, and framework; contains no code from this project).
 
-## ⚠️ Limitaciones y pendientes
-- Docker no está instalado en este equipo; `docker-compose.yml` no se pudo ejecutar. Su volumen se corrigió para no ocultar el paquete `app/` y los datos de portfolio usan un volumen persistente.
-- Los proveedores disponibles no admiten tool-calling de forma fiable; `CREWAI_AGENCY_MODE=crew` puede devolver HTTP 503 del gateway. El modo directo es el predeterminado.
-- El contenido de la copia temporal del workspace C: fue eliminado tras validar el destino; no queda una segunda copia del código.
-- `scripts/archive/` contiene generadores históricos no usados; uno (`generate_dashboard.py`) conserva un error de indentación preexistente y queda fuera de la compilación productiva.
-- Google Sheets, Telegram y Docker siguen siendo trabajo pendiente/por verificar; no deben considerarse implementados solo por la documentación antigua.
-- Finnhub no se pudo validar contra la API real: falta `FINNHUB_API_KEY` en el `.env` global. Las solicitudes sin clave responden HTTP 503 explícitamente.
-- El catálogo consultable implementado es el de Finnhub para USA (`exchange=US`); la app Android compila, pero no se ha ejecutado en un emulador o dispositivo.
-- La configuración de Kilo está documentada en `docs/CLINE_FREE_LLM_APIS.md`; seleccionar OpenAI Compatible en los ajustes de Cline es un paso manual.
-- `google.generativeai` está en desuso y emite avisos; migrar a `google-genai` es una mejora futura.
+## ✅ Validation completed (01/11/2026)
+- [x] `start-all.bat` starts Freellmpool and FastAPI and waits for HTTP health checks.
+- [x] `stop-all.ps1` stops only the process trees registered in `.services.json`.
+- [x] `/`, `/api/portfolio`, `/memory/remember`, `/memory/recall`, `/chat`, and `/agency/run` responded successfully.
+- [x] Memory persisted and was retrieved across requests.
+- [x] Live chat validated against Freellmpool (HTTP 200).
+- [x] Agency validated in direct mode (HTTP 200).
+- [x] Main modules compiled with Python 3.11.9.
+- [x] Repository reorganized into `app/`, `tests/`, `scripts/`, and `docs/` without breaking `uvicorn main:app`.
+- [x] Portfolio, memory, and session paths anchored to the project root and independent of the working directory.
+- [x] 7 isolated `unittest` tests passed with Python from `E:`: memory, HTTP 429 fallback, endpoints, market client, EUR conversion, 503 failure without simulation, and ISIN/ticker coverage.
+- [x] Project moved to its canonical location under `E:\Proyectos`, preserving the GitHub remote.
+- [x] Global AI configuration separated into `E:\Proyectos\ai-workstation`; the project loads the global `.env` without duplicating secrets.
+- [x] Global variables installed in the Windows user environment.
+- [x] Global runtime installed in `E:\Proyectos\ai-workstation\runtime`: Python 3.11, uv, FastAPI, CrewAI, and Freellmpool; project processes run from binaries on `E:`.
+- [x] Dashboard data retrieved through Yahoo Finance WebSocket push (`wss://streamer.finance.yahoo.com`), decoding pricing protobuf and distributing each change only to its symbol.
+- [x] 5-second polling and random fallback removed: the frontend consumes `/ws/market`, updates a single row per `quote_update`, and reconnects with backoff.
+- [x] Live streaming validated with two consecutive `BTC-USD` push events; portfolio assets are shown as `snapshot` while their markets are closed until a tick arrives.
+- [x] Installed agents divided by function: `analyst` validates ticks, `architect` diagnoses push/reconnection, and `optimizer` reviews value/P&L/allocation.
+- [x] ISIN tickers verified: `VWRA.L`, `SEMI.AS`, `UST.PA`, `EIMI.L`, `6701.T`, `4204.T`, `IUSN.DE`, and `5016.T`.
+- [x] E2E validated: FastAPI `:8000`, Freellmpool `:8080`, dashboard, 8 market positions, and live chat (`OK`).
+- [x] Web Yahoo/Finnhub selector, preference persistence, and manual price refresh integrated; the browser validated eight positions and the 390 px mobile view without horizontal overflow.
+- [x] Finnhub US catalog with explicit refresh and local search; tested with a mock catalog in the browser and persistence after reload.
+- [x] 17 unit tests, Python compilation, and catalog HTTP contract passed.
+- [x] Android app updated with a persisted provider and local cache/search; debug APK built with `gradlew.bat assembleDebug`.
+- [x] Gradle 8.7 wrapper generated and tested on Windows; Kotlin 1.9.22 was aligned with Compose Compiler 1.5.8 for a successful build.
+- [x] Cline 4.1.26 installed alongside Roo Code; Kilo `kilo-auto/free` endpoint tested without a key and values documented. Selecting the provider in the Cline UI still requires manual action.
+- [x] `Abrir Portfolio Stock Tracker.bat` waits up to 180 seconds on a cold start, starts the backend and gateway, opens the dashboard in an isolated Chrome/Edge window, and stops them when that window is closed or Ctrl+C is pressed; the full cycle was tested.
+- [x] `stop-all.ps1` validates the manifest, command, port, and PID before stopping processes; `-WhatIf` confirmed the expected process tree without interrupting services.
+- [x] `.clinerules` removed from the project: global rules now live only in `E:\Proyectos\ai-workstation\.clinerules`.
 
-## 🔐 Configuración
-- Credenciales únicamente en `E:\Proyectos\ai-workstation\.env`, instaladas también en el entorno de usuario de Windows.
-- `app/config.py` prioriza un `.env` local opcional y carga el entorno global si no existe.
-- No incrustar claves reales en código, tests ni documentación.
-- Reutilizar el cliente `app/freellmpool_client.py` con reintentos y backoff para 402/429/red.
+## ⚠️ Limitations and pending work
+- Docker is not installed on this machine; `docker-compose.yml` could not be
+  run. Its volume was corrected so it does not hide the `app/` package, and
+  portfolio data uses a persistent volume.
+- Available providers do not reliably support tool calling;
+  `CREWAI_AGENCY_MODE=crew` may return HTTP 503 from the gateway. Direct mode
+  is the default.
+- The contents of the temporary C: workspace copy were deleted after
+  validating the destination; no second copy of the code remains.
+- `scripts/archive/` contains unused historical generators; one
+  (`generate_dashboard.py`) retains a pre-existing indentation error and is
+  excluded from the production build.
+- Google Sheets, Telegram, and Docker remain pending/to be verified; they
+  should not be considered implemented based solely on old documentation.
+- Finnhub could not be validated against the live API: `FINNHUB_API_KEY` is
+  missing from the global `.env`. Requests without a key explicitly return
+  HTTP 503.
+- The implemented searchable catalog is Finnhub's US catalog (`exchange=US`);
+  the Android app compiles but has not been run on an emulator or device.
+- Kilo configuration is documented in `docs/CLINE_FREE_LLM_APIS.md`; selecting
+  OpenAI Compatible in Cline settings is a manual step.
+- `google.generativeai` is deprecated and emits warnings; migrating to
+  `google-genai` is a future improvement.
 
-## 🗺️ Próximas tareas
-1. Dividir `index.html` en módulos ES6 manteniendo el comportamiento actual.
-2. Implementar y probar Google Sheets y Telegram de forma independiente.
-3. Migrar `google.generativeai` a `google-genai` y revisar compatibilidad con Python 3.12+.
-4. Verificar Docker cuando esté disponible en el equipo.
-5. Ampliar pruebas de arranque y persistencia con proveedores simulados.
+## 🔐 Configuration
+- Credentials only in `E:\Proyectos\ai-workstation\.env`, also installed in the Windows user environment.
+- `app/config.py` prioritizes an optional local `.env` and loads the global environment if it does not exist.
+- Do not embed real keys in code, tests, or documentation.
+- Reuse `app/freellmpool_client.py` with retries and backoff for 402/429/network errors.
 
-## 📚 Documentos relacionados
-- `PROJECT_MEMORY.md`: reglas y estado funcional del portfolio.
-- `docs/IMPLEMENTATION_REPORT.md`: informe de los tres pilares.
-- `docs/COMPATIBILITY_FIXES.md`: compatibilidad y límites conocidos.
-- `docs/CLINE_OPENAI_COMPATIBLE.md`: configuración de Cline y Freellmpool.
+## 🗺️ Next tasks
+1. Split `index.html` into ES6 modules while preserving current behavior.
+2. Implement and test Google Sheets and Telegram independently.
+3. Migrate `google.generativeai` to `google-genai` and review compatibility
+   with Python 3.12+.
+4. Verify Docker when it is available on the machine.
+5. Expand startup and persistence tests with mock providers.
+
+## 📚 Related documents
+- `PROJECT_MEMORY.md`: portfolio rules and functional status.
+- `docs/IMPLEMENTATION_REPORT.md`: report on the three pillars.
+- `docs/COMPATIBILITY_FIXES.md`: compatibility and known limitations.
+- `docs/CLINE_OPENAI_COMPATIBLE.md`: Cline and Freellmpool configuration.

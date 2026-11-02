@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,46 +10,54 @@
         .phone-frame { width: min(380px, 100%); height: min(780px, calc(100dvh - 160px)); box-sizing: border-box; background: #111827; border: 12px solid #1f2937; border-radius: 40px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); overflow: hidden; display: flex; flex-direction: column; position: relative; margin: 0 auto; }
         .phone-screen { flex: 1; overflow-y: auto; background: #0b0f19; color: #f3f4f6; padding: 16px; }
         .phone-notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 140px; height: 22px; background: #1f2937; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; z-index: 50; }
-        
-        /* Smooth refresh animations */
-        @keyframes pulse-highlight {
-            0% { background-color: rgba(99, 102, 241, 0); }
-            50% { background-color: rgba(99, 102, 241, 0.2); }
-            100% { background-color: rgba(99, 102, 241, 0); }
+
+        .price-value {
+            display: inline-block;
+            border-radius: 0.375rem;
+            padding: 0.125rem 0.375rem;
         }
-        
-        @keyframes row-update {
-            0% { transform: translateX(0); background-color: rgba(16, 185, 129, 0); }
-            25% { transform: translateX(5px); background-color: rgba(16, 185, 129, 0.1); }
-            50% { transform: translateX(-5px); background-color: rgba(16, 185, 129, 0.2); }
-            75% { transform: translateX(3px); background-color: rgba(16, 185, 129, 0.1); }
-            100% { transform: translateX(0); background-color: rgba(16, 185, 129, 0); }
+
+        .price-tick-up {
+            animation: price-tick-up 700ms ease-out;
         }
-        
-        /* Individual row blinking for real-time data updates */
-        @keyframes individual-row-blink {
-            0% { background-color: rgba(16, 185, 129, 0.3); transform: scale(1.02); }
-            50% { background-color: rgba(16, 185, 129, 0.6); transform: scale(1.05); }
-            100% { background-color: rgba(16, 185, 129, 0); transform: scale(1); }
+
+        .price-tick-down {
+            animation: price-tick-down 700ms ease-out;
         }
-        
-        .table-row-update {
-            animation: row-update 0.6s ease-out;
+
+        @keyframes price-tick-up {
+            0%, 100% { background-color: transparent; color: inherit; }
+            35% { background-color: rgba(16, 185, 129, 0.28); color: #6ee7b7; }
         }
-        
-        .metric-card-update {
-            animation: pulse-highlight 0.8s ease-out;
+
+        @keyframes price-tick-down {
+            0%, 100% { background-color: transparent; color: inherit; }
+            35% { background-color: rgba(244, 63, 94, 0.28); color: #fda4af; }
         }
-        
-        /* NEW: Individual row highlighting for real-time API updates */
-        .individual-row-update {
-            animation: individual-row-blink 1.5s ease-in-out;
+
+        .history-tooltip {
+            position: absolute;
+            top: 0.5rem;
+            z-index: 1;
+            transform: translateX(-50%);
+            pointer-events: none;
+            white-space: nowrap;
         }
-        
-        /* Subtle glow for total value when it changes */
-        .total-value-update {
-            animation: pulse-highlight 1s ease-out;
-            text-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
+
+        #asset-history-dialog {
+            width: min(60rem, calc(100vw - 2rem));
+            max-width: none;
+            max-height: calc(100dvh - 2rem);
+            overflow-y: auto;
+        }
+
+        #asset-history-dialog::backdrop {
+            background: rgba(3, 7, 18, 0.78);
+            backdrop-filter: blur(3px);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .price-tick-up, .price-tick-down { animation-duration: 1ms; }
         }
 
         @media (max-width: 640px) {
@@ -69,8 +77,8 @@
             </div>
         </div>
         <div class="flex items-center space-x-3">
-            <button onclick="setViewMode('desktop')" id="btn-desktop" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-sm font-semibold rounded-lg transition shadow"><i class="fa-solid fa-desktop mr-2"></i> Vista Desktop</button>
-            <button onclick="setViewMode('mobile')" id="btn-mobile" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-sm font-semibold rounded-lg transition border border-gray-700"><i class="fa-solid fa-mobile-screen mr-2"></i> Vista Android APK</button>
+            <button onclick="setViewMode('desktop')" id="btn-desktop" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-sm font-semibold rounded-lg transition shadow"><i class="fa-solid fa-desktop mr-2"></i> Desktop view</button>
+            <button onclick="setViewMode('mobile')" id="btn-mobile" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-sm font-semibold rounded-lg transition border border-gray-700"><i class="fa-solid fa-mobile-screen mr-2"></i> Android APK preview</button>
         </div>
     </header>
 
@@ -78,65 +86,157 @@
         <div class="w-full max-w-7xl">
             <section class="mb-6 bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-3">
                 <div class="flex flex-wrap items-center gap-3">
-                    <label for="market-provider" class="text-xs text-gray-400">Fuente de cotizaciones</label>
+                    <label for="market-provider" class="text-xs text-gray-400">Quote provider</label>
                     <select id="market-provider" onchange="changeMarketProvider(this.value)" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs">
                         <option value="yahoo">Yahoo Finance (push)</option>
-                        <option value="finnhub">Finnhub.io (actualización manual)</option>
+                        <option value="finnhub">Finnhub.io (manual refresh)</option>
                     </select>
                     <button id="refresh-prices" type="button" onclick="refreshData()" class="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-xs font-semibold rounded-lg border border-gray-700 transition">
-                        <i class="fa-solid fa-rotate mr-1"></i> Actualizar precios
+                        <i class="fa-solid fa-rotate mr-1"></i> Refresh prices
                     </button>
-                    <span id="market-source-status" role="status" class="text-xs text-gray-400">Conectando con Yahoo Finance…</span>
+                    <span id="market-source-status" role="status" class="text-xs text-gray-400">Connecting to Yahoo Finance…</span>
                     <span id="provider-preference-warning" role="status" class="hidden text-xs text-amber-400"></span>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
-                    <label for="ticker-search" class="sr-only">Buscar en el catálogo local de tickers</label>
-                    <input id="ticker-search" type="search" oninput="searchTickers(this.value)" placeholder="Buscar ticker en catálogo local (USA)…" class="min-w-0 flex-1 bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-xs">
+                    <label for="ticker-search" class="sr-only">Search the local ticker catalog</label>
+                    <input id="ticker-search" type="search" oninput="searchTickers(this.value)" placeholder="Search the local ticker catalog (US)…" class="min-w-0 flex-1 bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-xs">
                     <button id="refresh-catalog" type="button" onclick="refreshTickerCatalog()" class="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-xs font-semibold rounded-lg border border-gray-700 transition">
-                        <i class="fa-solid fa-database mr-1"></i> Actualizar catálogo
+                        <i class="fa-solid fa-database mr-1"></i> Refresh catalog
                     </button>
-                    <span id="catalog-status" role="status" class="text-xs text-gray-500">Catálogo local vacío</span>
+                    <span id="catalog-status" role="status" class="text-xs text-gray-500">Local catalog is empty</span>
                 </div>
-                <div id="ticker-results" role="listbox" aria-label="Resultados del catálogo local" class="hidden max-h-40 overflow-y-auto bg-gray-950 border border-gray-700 rounded-lg p-2 text-xs"></div>
+                <div id="ticker-results" role="listbox" aria-label="Local catalog results" class="hidden max-h-40 overflow-y-auto bg-gray-950 border border-gray-700 rounded-lg p-2 text-xs"></div>
             </section>
 
         <!-- Desktop View -->
         <div id="desktop-view" class="w-full max-w-7xl space-y-6">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div class="bg-gray-900 border border-gray-800 p-5 rounded-2xl shadow-sm">
-                    <p class="text-xs text-gray-400 font-medium uppercase">Valor Total del Portfolio</p>
+                    <p class="text-xs text-gray-400 font-medium uppercase">Total portfolio value</p>
                     <h3 id="total-val" class="text-2xl font-extrabold mt-1 text-white">0,00 €</h3>
                 </div>
                 <div class="bg-gray-900 border border-gray-800 p-5 rounded-2xl shadow-sm">
-                    <p class="text-xs text-gray-400 font-medium uppercase">Ganancia / Pérdida Total</p>
+                    <p class="text-xs text-gray-400 font-medium uppercase">Total gain / loss</p>
                     <h3 id="total-pl" class="text-2xl font-extrabold mt-1">0,00 €</h3>
                     <span id="total-pl-pct" class="text-xs mt-2 inline-block font-semibold">0.00%</span>
                 </div>
                 <div class="bg-gray-900 border border-gray-800 p-5 rounded-2xl shadow-sm">
-                    <p class="text-xs text-gray-400 font-medium uppercase">Activos Totales</p>
+                    <p class="text-xs text-gray-400 font-medium uppercase">Total assets</p>
                     <h3 id="total-assets" class="text-2xl font-extrabold mt-1 text-indigo-400">4</h3>
-                    <span class="text-xs text-gray-400 mt-2 inline-block">Acciones & Cripto</span>
+                    <span class="text-xs text-gray-400 mt-2 inline-block">Stocks & crypto</span>
                 </div>
                 <div class="bg-gray-900 border border-gray-800 p-5 rounded-2xl shadow-sm">
                     <p class="text-xs text-gray-400 font-medium uppercase">Backend & CrewAI</p>
-                    <h3 class="text-2xl font-extrabold mt-1 text-emerald-400">Conectado</h3>
-                    <span class="text-xs text-emerald-500 mt-2 inline-block"><i class="fa-solid fa-circle-check"></i> FastAPI Activo</span>
+                    <h3 class="text-2xl font-extrabold mt-1 text-emerald-400">Connected</h3>
+                    <span class="text-xs text-emerald-500 mt-2 inline-block"><i class="fa-solid fa-circle-check"></i> FastAPI online</span>
                 </div>
             </div>
 
+            <section class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-xl" aria-labelledby="history-title">
+                <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
+                    <div>
+                        <h3 id="history-title" class="font-bold text-lg">Portfolio history</h3>
+                        <p class="text-xs text-gray-400 mt-1">Estimated market value based on recorded purchases; cash is excluded.</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2" role="group" aria-label="History period">
+                        <button type="button" data-history-period="1d" onclick="loadPortfolioHistory('1d')" class="history-period-button px-3 py-1.5 rounded-lg text-xs bg-indigo-600">1D</button>
+                        <button type="button" data-history-period="1w" onclick="loadPortfolioHistory('1w')" class="history-period-button px-3 py-1.5 rounded-lg text-xs bg-gray-800">1W</button>
+                        <button type="button" data-history-period="1m" onclick="loadPortfolioHistory('1m')" class="history-period-button px-3 py-1.5 rounded-lg text-xs bg-gray-800">1M</button>
+                        <button type="button" data-history-period="1y" onclick="loadPortfolioHistory('1y')" class="history-period-button px-3 py-1.5 rounded-lg text-xs bg-gray-800">1Y</button>
+                        <button type="button" data-history-period="ytd" onclick="loadPortfolioHistory('ytd')" class="history-period-button px-3 py-1.5 rounded-lg text-xs bg-gray-800">YTD</button>
+                        <button type="button" data-history-period="max" onclick="loadPortfolioHistory('max')" class="history-period-button px-3 py-1.5 rounded-lg text-xs bg-gray-800">ALL</button>
+                    </div>
+                </div>
+                <div class="flex flex-wrap items-baseline gap-3 mb-2">
+                    <strong id="history-period-value" class="text-2xl font-bold">—</strong>
+                    <span id="history-period-change" class="text-sm text-gray-400">Loading history…</span>
+                </div>
+                <div id="portfolio-history-chart-shell" class="relative">
+                <svg id="portfolio-history-chart" viewBox="0 0 1000 260" preserveAspectRatio="none" role="img" aria-label="Historical portfolio market value chart. Move or tap to inspect values." tabindex="0" class="w-full h-56 overflow-visible touch-pan-y">
+                    <defs>
+                        <linearGradient id="history-gradient" x1="0" x2="0" y1="0" y2="1">
+                            <stop offset="0%" stop-color="#6366f1" stop-opacity="0.35"></stop>
+                            <stop offset="100%" stop-color="#6366f1" stop-opacity="0"></stop>
+                        </linearGradient>
+                    </defs>
+                    <path id="history-area" fill="url(#history-gradient)"></path>
+                    <path id="history-line" fill="none" stroke="#818cf8" stroke-width="3" vector-effect="non-scaling-stroke"></path>
+                    <g id="history-crosshair" visibility="hidden" class="pointer-events-none">
+                        <line x1="0" y1="12" x2="0" y2="250" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="5 5" vector-effect="non-scaling-stroke"></line>
+                        <circle cx="0" cy="0" r="5" fill="#c7d2fe" stroke="#111827" stroke-width="2" vector-effect="non-scaling-stroke"></circle>
+                    </g>
+                </svg>
+                <div id="history-tooltip" class="history-tooltip hidden rounded-md border border-gray-600 bg-gray-950/95 px-2.5 py-1.5 text-xs shadow-lg"></div>
+                </div>
+                <div class="flex justify-between text-xs text-gray-500 mt-2">
+                    <span id="history-start-label">—</span>
+                    <span id="history-end-label">—</span>
+                </div>
+                <p id="history-status" role="status" class="text-xs text-gray-500 mt-3">Loading historical prices…</p>
+            </section>
+
+            <dialog id="asset-history-dialog" class="rounded-2xl border border-gray-700 bg-gray-900 p-0 text-gray-100 shadow-2xl">
+                <section class="p-5 sm:p-6">
+                    <div class="mb-4 flex items-start justify-between gap-4">
+                        <div>
+                            <h2 id="asset-history-title" class="text-xl font-bold">Asset history</h2>
+                            <p id="asset-history-subtitle" class="mt-1 text-xs text-gray-400"></p>
+                        </div>
+                        <button type="button" onclick="closeAssetHistory()" aria-label="Close asset history" class="rounded-lg border border-gray-700 px-3 py-1.5 text-sm hover:bg-gray-800">Close</button>
+                    </div>
+                    <div class="mb-4 flex flex-wrap gap-2" role="group" aria-label="Asset history period">
+                        <button type="button" data-asset-history-period="1d" onclick="loadAssetHistory('1d')" class="asset-history-period-button rounded-lg bg-indigo-600 px-3 py-1.5 text-xs" aria-pressed="false">1D</button>
+                        <button type="button" data-asset-history-period="1w" onclick="loadAssetHistory('1w')" class="asset-history-period-button rounded-lg bg-gray-800 px-3 py-1.5 text-xs" aria-pressed="false">1W</button>
+                        <button type="button" data-asset-history-period="1m" onclick="loadAssetHistory('1m')" class="asset-history-period-button rounded-lg bg-gray-800 px-3 py-1.5 text-xs" aria-pressed="false">1M</button>
+                        <button type="button" data-asset-history-period="1y" onclick="loadAssetHistory('1y')" class="asset-history-period-button rounded-lg bg-gray-800 px-3 py-1.5 text-xs" aria-pressed="false">1Y</button>
+                        <button type="button" data-asset-history-period="ytd" onclick="loadAssetHistory('ytd')" class="asset-history-period-button rounded-lg bg-gray-800 px-3 py-1.5 text-xs" aria-pressed="false">YTD</button>
+                        <button type="button" data-asset-history-period="max" onclick="loadAssetHistory('max')" class="asset-history-period-button rounded-lg bg-gray-800 px-3 py-1.5 text-xs" aria-pressed="false">ALL</button>
+                    </div>
+                    <div class="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Last historical value</p><p id="asset-history-value" class="mt-1 font-semibold">—</p></div>
+                        <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Period change</p><p id="asset-history-change" class="mt-1 font-semibold">—</p></div>
+                        <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Period high</p><p id="asset-history-high" class="mt-1 font-semibold">—</p></div>
+                        <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Period low</p><p id="asset-history-low" class="mt-1 font-semibold">—</p></div>
+                    </div>
+                    <div id="asset-history-chart-shell" class="relative">
+                        <svg id="asset-history-chart" viewBox="0 0 1000 260" preserveAspectRatio="none" role="img" aria-label="Historical asset value chart. Move or tap to inspect values." tabindex="0" class="w-full h-56 overflow-visible touch-pan-y">
+                            <defs>
+                                <linearGradient id="asset-history-gradient" x1="0" x2="0" y1="0" y2="1">
+                                    <stop offset="0%" stop-color="#6366f1" stop-opacity="0.35"></stop>
+                                    <stop offset="100%" stop-color="#6366f1" stop-opacity="0"></stop>
+                                </linearGradient>
+                            </defs>
+                            <path id="asset-history-area" fill="url(#asset-history-gradient)"></path>
+                            <path id="asset-history-line" fill="none" stroke="#818cf8" stroke-width="3" vector-effect="non-scaling-stroke"></path>
+                            <g id="asset-history-crosshair" visibility="hidden" class="pointer-events-none">
+                                <line x1="0" y1="12" x2="0" y2="250" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="5 5" vector-effect="non-scaling-stroke"></line>
+                                <circle cx="0" cy="0" r="5" fill="#c7d2fe" stroke="#111827" stroke-width="2" vector-effect="non-scaling-stroke"></circle>
+                            </g>
+                        </svg>
+                        <div id="asset-history-tooltip" class="history-tooltip hidden rounded-md border border-gray-600 bg-gray-950/95 px-2.5 py-1.5 text-xs shadow-lg"></div>
+                    </div>
+                    <div class="flex justify-between text-xs text-gray-500">
+                        <span id="asset-history-start-label">—</span>
+                        <span id="asset-history-end-label">—</span>
+                    </div>
+                    <p id="asset-history-status" role="status" class="mt-3 text-xs text-gray-400">Select a period to load historical prices.</p>
+                    <p id="asset-history-details" class="mt-2 text-xs text-gray-500"></p>
+                </section>
+            </dialog>
+
             <div class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
                 <div class="p-5 border-b border-gray-800 flex flex-wrap justify-between items-center gap-3">
-                    <h3 class="font-bold text-lg"><i class="fa-solid fa-list mr-2 text-indigo-500"></i> Posiciones en Tiempo Real</h3>
+                    <h3 class="font-bold text-lg"><i class="fa-solid fa-list mr-2 text-indigo-500"></i> Live positions</h3>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
                         <thead>
                             <tr class="bg-gray-950/60 text-gray-400 text-xs uppercase border-b border-gray-800">
                                 <th class="p-4">Ticker</th>
-                                <th class="p-4">Nombre</th>
-                                <th class="p-4">Precio Actual</th>
-                                <th class="p-4">Variación 24h</th>
-                                <th class="p-4 text-right">Acción</th>
+                                <th class="p-4">Name</th>
+                                <th class="p-4">Current price</th>
+                                <th class="p-4">24h change</th>
+                                <th class="p-4 text-right">Source</th>
                             </tr>
                         </thead>
                         <tbody id="portfolio-table-body" class="divide-y divide-gray-800 text-sm"></tbody>
@@ -155,7 +255,7 @@
                         <span class="text-xs bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-800">v1.0 Online</span>
                     </div>
                     <div class="bg-gray-900 border border-gray-800 p-4 rounded-xl">
-                        <p class="text-xs text-gray-400">Balance Cartera Móvil</p>
+                        <p class="text-xs text-gray-400">Mobile portfolio value</p>
                         <h3 id="mobile-total" class="text-xl font-extrabold text-white mt-1">0,00 €</h3>
                     </div>
                     <div class="space-y-2" id="mobile-list"></div>
@@ -185,26 +285,40 @@
             }
         }
 
-        const currencyFormatter = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
+        const currencyFormatter = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'EUR' });
         const providerStorageKey = 'portfolio.marketProvider';
         const catalogStorageKey = 'portfolio.tickerCatalog.finnhub.US.v1';
         const validProviders = new Set(['yahoo', 'finnhub']);
+        const minimumPriceFlashChangeEur = 0.01;
+        const priceFlashChangeRatio = 0.001;
         let currentProvider = 'yahoo';
         let tickerCatalog = [];
         let reconnectAttempts = 0;
         let refreshGeneration = 0;
         let reconnectTimer = null;
         let marketSocket = null;
+        let historyRequestId = 0;
+        let assetHistoryRequestId = 0;
+        let activeAssetIsin = null;
+        let activeAssetHistoryPeriod = '1d';
+        let activePortfolioHistoryPeriod = '1d';
+        const lastAnimatedPriceBySymbol = new Map();
+        const activePositionsByIsin = new Map();
+        const chartInteractions = new WeakMap();
+
+        function positionIsin(stock) {
+            return String(stock.ticker || '').split('•')[0].trim().toUpperCase();
+        }
 
         function quoteMarkup(stock) {
             const change = Number(stock.changePercent ?? 0);
             const isPositive = change >= 0;
             const colorClass = isPositive ? 'text-emerald-400' : 'text-rose-400';
             const icon = isPositive ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down';
-            const marketPrice = `${Number(stock.marketPrice).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${stock.marketCurrency}`;
-            const portfolioPrice = `${Number(stock.price).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} EUR`;
+            const marketPrice = `${Number(stock.marketPrice).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${stock.marketCurrency}`;
+            const portfolioPrice = `${Number(stock.price).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} EUR`;
             const changeText = `${change > 0 ? '+' : ''}${change.toFixed(2)}%`;
-            const quoteTime = stock.quoteTimestamp ? new Date(stock.quoteTimestamp).toLocaleString('es-ES') : 'sin timestamp';
+            const quoteTime = stock.quoteTimestamp ? new Date(stock.quoteTimestamp).toLocaleString('en-GB') : 'no timestamp';
             const delivery = stock.dataStatus === 'realtime_push' ? 'push' : (stock.marketState && stock.marketState !== 'UNKNOWN' ? stock.marketState.toLowerCase() : 'snapshot');
             const source = stock.dataSource || 'Yahoo Finance';
             return { change, colorClass, icon, marketPrice, portfolioPrice, changeText, quoteTime, delivery: `${source} · ${delivery}` };
@@ -212,11 +326,12 @@
 
         function desktopRow(stock) {
             const view = quoteMarkup(stock);
+            const isin = positionIsin(stock);
             return `
-                <tr data-symbol="${stock.marketSymbol}" class="hover:bg-gray-950/40 transition">
+                <tr data-symbol="${stock.marketSymbol}" data-isin="${isin}" tabindex="0" role="button" aria-label="View history for ${stock.name}" class="cursor-pointer hover:bg-gray-950/60 focus:bg-gray-950/60 transition">
                     <td class="p-4 font-bold text-indigo-400">${stock.marketSymbol}</td>
                     <td class="p-4 text-gray-300">${stock.name}<div class="text-xs text-gray-500 mt-1">${stock.ticker.split('•')[0].trim()} · ${stock.shares} uds.</div></td>
-                    <td class="p-4 font-semibold"><span data-field="portfolio-price">${view.portfolioPrice}</span><div class="text-xs text-gray-500 mt-1">Mercado: <span data-field="market-price">${view.marketPrice}</span></div></td>
+                    <td class="p-4 font-semibold"><span data-field="portfolio-price" class="price-value">${view.portfolioPrice}</span><div class="text-xs text-gray-500 mt-1">Market: <span data-field="market-price">${view.marketPrice}</span></div></td>
                     <td class="p-4 ${view.colorClass} font-medium"><i class="fa-solid ${view.icon} mr-1"></i> <span data-field="change">${view.changeText}</span><div class="text-xs text-gray-500 mt-1"><span data-field="quote-time">${view.quoteTime}</span></div></td>
                     <td class="p-4 text-right"><span data-field="delivery" class="px-2.5 py-1 bg-gray-800 text-xs rounded-lg text-gray-300">${view.delivery}</span></td>
                 </tr>
@@ -225,15 +340,16 @@
 
         function mobileCard(stock) {
             const view = quoteMarkup(stock);
+            const isin = positionIsin(stock);
             return `
-                <div data-symbol="${stock.marketSymbol}" class="bg-gray-900 border border-gray-800 p-3 rounded-xl flex justify-between items-center text-xs">
+                <div data-symbol="${stock.marketSymbol}" data-isin="${isin}" tabindex="0" role="button" aria-label="View history for ${stock.name}" class="bg-gray-900 border border-gray-800 p-3 rounded-xl flex justify-between items-center text-xs cursor-pointer hover:border-indigo-500 focus:border-indigo-500">
                     <div>
                         <p class="font-bold text-indigo-400">${stock.marketSymbol}</p>
                         <p class="text-gray-400">${stock.name}</p>
-                        <p class="text-gray-500 mt-1">Mercado: <span data-field="market-price">${view.marketPrice}</span></p>
+                        <p class="text-gray-500 mt-1">Market: <span data-field="market-price">${view.marketPrice}</span></p>
                     </div>
                     <div class="text-right">
-                        <p class="font-semibold" data-field="portfolio-price">${view.portfolioPrice}</p>
+                        <p class="font-semibold price-value" data-field="portfolio-price">${view.portfolioPrice}</p>
                         <p class="${view.colorClass}" data-field="change">${view.changeText}</p>
                         <p class="text-gray-500 mt-1" data-field="delivery">${view.delivery}</p>
                     </div>
@@ -253,6 +369,8 @@
 
         function updateSinglePosition(stock) {
             const view = quoteMarkup(stock);
+            activePositionsByIsin.set(positionIsin(stock), stock);
+
             document.querySelectorAll(`[data-symbol="${CSS.escape(stock.marketSymbol)}"]`).forEach(element => {
                 const setText = (field, value) => {
                     const target = element.querySelector(`[data-field="${field}"]`);
@@ -273,9 +391,31 @@
                     icon.classList.remove('fa-arrow-trend-up', 'fa-arrow-trend-down');
                     icon.classList.add(view.icon);
                 }
-                element.classList.remove('individual-row-update');
+            });
+            highlightPriceMovement(stock);
+        }
+
+        function highlightPriceMovement(stock) {
+            const currentPrice = Number(stock.price);
+            if (!Number.isFinite(currentPrice)) return;
+            const previousPrice = lastAnimatedPriceBySymbol.get(stock.marketSymbol);
+            if (previousPrice === undefined) {
+                lastAnimatedPriceBySymbol.set(stock.marketSymbol, currentPrice);
+                return;
+            }
+            const difference = currentPrice - previousPrice;
+            const threshold = Math.max(
+                minimumPriceFlashChangeEur,
+                Math.abs(previousPrice) * priceFlashChangeRatio
+            );
+            if (Math.abs(difference) < threshold) return;
+
+            lastAnimatedPriceBySymbol.set(stock.marketSymbol, currentPrice);
+            const directionClass = difference > 0 ? 'price-tick-up' : 'price-tick-down';
+            document.querySelectorAll(`[data-symbol="${CSS.escape(stock.marketSymbol)}"] [data-field="portfolio-price"]`).forEach(element => {
+                element.classList.remove('price-tick-up', 'price-tick-down');
                 void element.offsetWidth;
-                element.classList.add('individual-row-update');
+                element.classList.add(directionClass);
             });
         }
 
@@ -284,10 +424,10 @@
             const statusLabel = document.getElementById('market-source-status');
             if (!health) return;
             const labels = {
-                connected: `Push conectado · ${health.last_event_age_seconds ?? 0}s desde el último tick`,
-                connecting: 'Conectando al push de mercado…',
-                disconnected: `Push desconectado · reintentando (${health.reconnect_attempts || 0})`,
-                stopped: 'Push detenido'
+                connected: `Push connected · ${health.last_event_age_seconds ?? 0}s since last tick`,
+                connecting: 'Connecting to market data push…',
+                disconnected: `Push disconnected · retrying (${health.reconnect_attempts || 0})`,
+                stopped: 'Push stopped'
             };
             statusLabel.innerText = labels[health.state] || `Push: ${health.state}`;
             statusLabel.className = `text-xs ${health.state === 'connected' ? 'text-emerald-400' : 'text-amber-400'}`;
@@ -296,8 +436,13 @@
         function renderSnapshot(event) {
             const tbody = document.getElementById('portfolio-table-body');
             const mobileList = document.getElementById('mobile-list');
+            activePositionsByIsin.clear();
+            event.positions.forEach(stock => {
+                activePositionsByIsin.set(positionIsin(stock), stock);
+            });
             tbody.innerHTML = event.positions.map(desktopRow).join('');
             mobileList.innerHTML = event.positions.map(mobileCard).join('');
+            event.positions.forEach(highlightPriceMovement);
             updateTotals(event.totals);
             updateStreamStatus(event.health);
         }
@@ -324,13 +469,13 @@
             socket.onopen = () => {
                 if (currentProvider !== 'yahoo') return;
                 reconnectAttempts = 0;
-                setMarketStatus('Push conectado · Yahoo Finance', 'success');
+                setMarketStatus('Push connected · Yahoo Finance', 'success');
             };
             socket.onmessage = message => {
                 try {
                     handleMarketEvent(JSON.parse(message.data));
                 } catch (error) {
-                    console.error('Evento de mercado inválido:', error);
+                    console.error('Invalid market event:', error);
                 }
             };
             socket.onerror = () => socket.close();
@@ -339,7 +484,7 @@
                 if (currentProvider !== 'yahoo') return;
                 reconnectAttempts += 1;
                 const delay = Math.min(1000 * (2 ** Math.min(reconnectAttempts, 5)), 30000);
-                setMarketStatus(`Yahoo Finance desconectado · reintentando en ${Math.round(delay / 1000)}s`, 'warning');
+                setMarketStatus(`Yahoo Finance disconnected · retrying in ${Math.round(delay / 1000)}s`, 'warning');
                 reconnectTimer = setTimeout(connectMarketStream, delay);
             };
         }
@@ -367,7 +512,7 @@
                 const response = await fetch(`/api/portfolio/realtime?provider=${encodeURIComponent(requestedProvider)}`);
                 const payload = await response.json();
                 if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
-                if (!Array.isArray(payload)) throw new Error('Respuesta de portfolio no válida');
+                if (!Array.isArray(payload)) throw new Error('Invalid portfolio response');
                 if (generation !== refreshGeneration || requestedProvider !== currentProvider) return;
 
                 const gain = payload.reduce((sum, item) => sum + Number(item.gain || 0), 0);
@@ -381,19 +526,241 @@
                         assets: payload.length
                     }
                 });
-                setMarketStatus(`${payload[0]?.dataSource || (currentProvider === 'yahoo' ? 'Yahoo Finance' : 'Finnhub.io')} actualizado · ${new Date().toLocaleTimeString('es-ES')}`, 'success');
+                setMarketStatus(`${payload[0]?.dataSource || (currentProvider === 'yahoo' ? 'Yahoo Finance' : 'Finnhub.io')} updated · ${new Date().toLocaleTimeString('en-GB')}`, 'success');
             } catch (error) {
                 if (generation !== refreshGeneration) return;
-                console.error('No se pudieron actualizar los precios:', error);
-                setMarketStatus(`Error al actualizar precios: ${error.message}`, 'error');
+                console.error('Could not refresh prices:', error);
+                setMarketStatus(`Price refresh failed: ${error.message}`, 'error');
             } finally {
                 if (generation === refreshGeneration) button.disabled = false;
             }
         }
 
+        function renderHistoryChart(points, chartIds) {
+            if (!points.length) throw new Error('No historical data is available for this period.');
+            const values = points.map(point => Number(point.value));
+            const minValue = Math.min(...values);
+            const maxValue = Math.max(...values);
+            const range = maxValue - minValue || Math.max(maxValue * 0.01, 1);
+            const width = 1000;
+            const height = 250;
+            const padding = 12;
+            const coordinates = values.map((value, index) => ({
+                x: padding + (points.length === 1 ? 0 : index * (width - 2 * padding) / (points.length - 1)),
+                y: height - padding - ((value - minValue) / range) * (height - 2 * padding)
+            }));
+            const linePath = coordinates
+                .map((point, index) => `${index ? 'L' : 'M'}${point.x.toFixed(2)},${point.y.toFixed(2)}`)
+                .join(' ');
+            const areaPath = `${linePath} L${coordinates.at(-1).x.toFixed(2)},${height} L${coordinates[0].x.toFixed(2)},${height} Z`;
+            document.getElementById(chartIds.line).setAttribute('d', linePath);
+            document.getElementById(chartIds.area).setAttribute('d', areaPath);
+
+            const color = values.at(-1) >= values[0] ? '#34d399' : '#fb7185';
+            const line = document.getElementById(chartIds.line);
+            line.setAttribute('stroke', color);
+            const gradient = document.getElementById(chartIds.gradient);
+            gradient.querySelector('stop').setAttribute('stop-color', color);
+            gradient.querySelectorAll('stop')[1].setAttribute('stop-color', color);
+
+            let interaction = chartInteractions.get(line.ownerSVGElement);
+            if (!interaction) {
+                const svg = line.ownerSVGElement;
+                interaction = {
+                    points: [],
+                    coordinates: [],
+                    index: 0,
+                    focus: document.getElementById(chartIds.crosshair),
+                    tooltip: document.getElementById(chartIds.tooltip),
+                    hideTimer: null
+                };
+                const showPoint = index => {
+                    if (!interaction.points.length) return;
+                    interaction.index = Math.max(0, Math.min(index, interaction.points.length - 1));
+                    const point = interaction.points[interaction.index];
+                    const coordinate = interaction.coordinates[interaction.index];
+                    interaction.focus.querySelector('line').setAttribute('x1', coordinate.x);
+                    interaction.focus.querySelector('line').setAttribute('x2', coordinate.x);
+                    interaction.focus.querySelector('circle').setAttribute('cx', coordinate.x);
+                    interaction.focus.querySelector('circle').setAttribute('cy', coordinate.y);
+                    interaction.focus.setAttribute('visibility', 'visible');
+                    interaction.tooltip.textContent =
+                        `${new Date(point.timestamp * 1000).toLocaleString('en-GB')} · ${currencyFormatter.format(point.value)}`;
+                    const rect = svg.getBoundingClientRect();
+                    const position = rect.width ? coordinate.x / width * 100 : 50;
+                    interaction.tooltip.style.left = `${Math.max(12, Math.min(88, position))}%`;
+                    interaction.tooltip.classList.remove('hidden');
+                };
+                const hidePoint = () => {
+                    interaction.focus.setAttribute('visibility', 'hidden');
+                    interaction.tooltip.classList.add('hidden');
+                };
+                const selectPointerPoint = event => {
+                    const rect = svg.getBoundingClientRect();
+                    if (!rect.width || interaction.points.length < 2) {
+                        showPoint(0);
+                        return;
+                    }
+                    const chartX = (event.clientX - rect.left) / rect.width * width;
+                    const index = Math.round(
+                        (chartX - padding) / (width - 2 * padding) * (interaction.points.length - 1)
+                    );
+                    showPoint(index);
+                    clearTimeout(interaction.hideTimer);
+                    if (event.pointerType === 'touch') {
+                        interaction.hideTimer = setTimeout(hidePoint, 4000);
+                    }
+                };
+                svg.addEventListener('pointermove', selectPointerPoint);
+                svg.addEventListener('pointerdown', selectPointerPoint);
+                svg.addEventListener('pointerleave', event => {
+                    if (event.pointerType !== 'touch') hidePoint();
+                });
+                svg.addEventListener('focus', () => showPoint(interaction.index));
+                svg.addEventListener('blur', hidePoint);
+                svg.addEventListener('keydown', event => {
+                    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+                    event.preventDefault();
+                    showPoint(interaction.index + (event.key === 'ArrowRight' ? 1 : -1));
+                });
+                interaction.showPoint = showPoint;
+                chartInteractions.set(svg, interaction);
+            }
+            interaction.points = points;
+            interaction.coordinates = coordinates;
+            if (document.activeElement === line.ownerSVGElement) {
+                interaction.showPoint(interaction.index);
+            }
+            return { values, coordinates };
+        }
+
+        function renderPortfolioHistory(payload) {
+            const points = payload.points || [];
+            renderHistoryChart(points, {
+                line: 'history-line',
+                area: 'history-area',
+                gradient: 'history-gradient',
+                crosshair: 'history-crosshair',
+                tooltip: 'history-tooltip'
+            });
+
+            const summary = payload.summary;
+            const changeLabel = `${summary.change >= 0 ? '+' : '−'}${currencyFormatter.format(Math.abs(summary.change))} (${summary.change_pct >= 0 ? '+' : ''}${summary.change_pct.toFixed(2)}%) over selected period`;
+            const changeElement = document.getElementById('history-period-change');
+            changeElement.textContent = changeLabel;
+            changeElement.className = `text-sm ${summary.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+            document.getElementById('history-period-value').textContent = currencyFormatter.format(summary.end_value);
+            document.getElementById('history-start-label').textContent = new Date(points[0].timestamp * 1000).toLocaleDateString('en-GB');
+            document.getElementById('history-end-label').textContent = new Date(points.at(-1).timestamp * 1000).toLocaleDateString('en-GB');
+            document.getElementById('history-status').textContent =
+                `${payload.note} Available history starts ${new Date(`${payload.available_from}T00:00:00Z`).toLocaleDateString('en-GB')}.`;
+        }
+
+        async function loadPortfolioHistory(period) {
+            const requestId = ++historyRequestId;
+            activePortfolioHistoryPeriod = period;
+            const status = document.getElementById('history-status');
+            status.textContent = 'Loading historical prices…';
+            document.querySelectorAll('.history-period-button').forEach(button => {
+                const selected = button.dataset.historyPeriod === period;
+                button.className = `history-period-button px-3 py-1.5 rounded-lg text-xs ${selected ? 'bg-indigo-600' : 'bg-gray-800'}`;
+                button.setAttribute('aria-pressed', String(selected));
+            });
+            try {
+                const response = await fetch(`/api/portfolio/history?period=${encodeURIComponent(period)}`);
+                const payload = await response.json();
+                if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
+                if (requestId !== historyRequestId) return;
+                renderPortfolioHistory(payload);
+            } catch (error) {
+                if (requestId !== historyRequestId) return;
+                console.error('Could not load portfolio history:', error);
+                document.getElementById('history-line').setAttribute('d', '');
+                document.getElementById('history-area').setAttribute('d', '');
+                document.getElementById('history-period-value').textContent = '—';
+                document.getElementById('history-period-change').textContent = 'History unavailable';
+                status.textContent = `Could not load historical prices: ${error.message}`;
+            }
+        }
+
+        function openAssetHistory(isin) {
+            const stock = activePositionsByIsin.get(isin);
+            if (!stock) return;
+            activeAssetIsin = isin;
+            const dialog = document.getElementById('asset-history-dialog');
+            document.getElementById('asset-history-title').textContent = stock.name;
+            document.getElementById('asset-history-subtitle').textContent =
+                `${stock.marketSymbol} · ${isin} · ${stock.shares} shares`;
+            document.getElementById('asset-history-status').textContent = 'Loading historical prices…';
+            if (!dialog.open) dialog.showModal();
+            loadAssetHistory(activeAssetHistoryPeriod);
+        }
+
+        function closeAssetHistory() {
+            assetHistoryRequestId++;
+            document.getElementById('asset-history-dialog').close();
+        }
+
+        function renderAssetHistory(payload) {
+            const points = payload.points || [];
+            renderHistoryChart(points, {
+                line: 'asset-history-line',
+                area: 'asset-history-area',
+                gradient: 'asset-history-gradient',
+                crosshair: 'asset-history-crosshair',
+                tooltip: 'asset-history-tooltip'
+            });
+            const summary = payload.summary;
+            const change = document.getElementById('asset-history-change');
+            change.textContent =
+                `${summary.change >= 0 ? '+' : '−'}${currencyFormatter.format(Math.abs(summary.change))} (${summary.change_pct >= 0 ? '+' : ''}${summary.change_pct.toFixed(2)}%)`;
+            change.className = `mt-1 font-semibold ${summary.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+            document.getElementById('asset-history-value').textContent = currencyFormatter.format(summary.end_value);
+            document.getElementById('asset-history-high').textContent =
+                `${currencyFormatter.format(summary.high)} · ${new Date(summary.high_timestamp * 1000).toLocaleDateString('en-GB')}`;
+            document.getElementById('asset-history-low').textContent =
+                `${currencyFormatter.format(summary.low)} · ${new Date(summary.low_timestamp * 1000).toLocaleDateString('en-GB')}`;
+            document.getElementById('asset-history-start-label').textContent = new Date(points[0].timestamp * 1000).toLocaleDateString('en-GB');
+            document.getElementById('asset-history-end-label').textContent = new Date(points.at(-1).timestamp * 1000).toLocaleDateString('en-GB');
+            document.getElementById('asset-history-status').textContent =
+                `${payload.note} Available history starts ${new Date(`${payload.available_from}T00:00:00Z`).toLocaleDateString('en-GB')}.`;
+            const asset = payload.asset;
+            document.getElementById('asset-history-details').textContent =
+                `${asset.shares} shares · Cost basis ${currencyFormatter.format(asset.cost_basis)} · Estimated unrealized P/L at the last available historical price: ${currencyFormatter.format(asset.unrealized_gain)} (${asset.unrealized_gain_pct >= 0 ? '+' : ''}${asset.unrealized_gain_pct.toFixed(2)}%).`;
+        }
+
+        async function loadAssetHistory(period) {
+            if (!activeAssetIsin) return;
+            const requestId = ++assetHistoryRequestId;
+            activeAssetHistoryPeriod = period;
+            const status = document.getElementById('asset-history-status');
+            status.textContent = 'Loading historical prices…';
+            document.querySelectorAll('.asset-history-period-button').forEach(button => {
+                const selected = button.dataset.assetHistoryPeriod === period;
+                button.className = `asset-history-period-button rounded-lg px-3 py-1.5 text-xs ${selected ? 'bg-indigo-600' : 'bg-gray-800'}`;
+                button.setAttribute('aria-pressed', String(selected));
+            });
+            try {
+                const query = new URLSearchParams({ period, isin: activeAssetIsin });
+                const response = await fetch(`/api/portfolio/history?${query}`);
+                const payload = await response.json();
+                if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
+                if (requestId !== assetHistoryRequestId) return;
+                renderAssetHistory(payload);
+            } catch (error) {
+                if (requestId !== assetHistoryRequestId) return;
+                console.error('Could not load asset history:', error);
+                document.getElementById('asset-history-line').setAttribute('d', '');
+                document.getElementById('asset-history-area').setAttribute('d', '');
+                document.getElementById('asset-history-value').textContent = '—';
+                document.getElementById('asset-history-change').textContent = 'History unavailable';
+                status.textContent = `Could not load historical prices: ${error.message}`;
+            }
+        }
+
         function changeMarketProvider(provider) {
             if (!validProviders.has(provider)) {
-                setMarketStatus('Fuente de cotizaciones no válida', 'error');
+                setMarketStatus('Invalid quote provider', 'error');
                 return;
             }
             currentProvider = provider;
@@ -401,8 +768,8 @@
                 localStorage.setItem(providerStorageKey, provider);
                 setProviderPreferenceWarning();
             } catch (error) {
-                console.error('No se pudo guardar la fuente seleccionada:', error);
-                setProviderPreferenceWarning('La fuente solo se conservará durante esta sesión');
+                console.error('Could not save the selected provider:', error);
+                setProviderPreferenceWarning('The selected provider will only be kept for this session');
             }
 
             if (provider === 'yahoo') {
@@ -410,7 +777,7 @@
             } else {
                 clearTimeout(reconnectTimer);
                 if (marketSocket && marketSocket.readyState < WebSocket.CLOSING) marketSocket.close();
-                setMarketStatus('Finnhub.io seleccionado · precios solo bajo demanda');
+                setMarketStatus('Finnhub.io selected · prices update on demand');
             }
             refreshData();
         }
@@ -419,23 +786,23 @@
             try {
                 const cached = localStorage.getItem(catalogStorageKey);
                 if (!cached) {
-                    document.getElementById('catalog-status').textContent = 'Catálogo local vacío · actualízalo manualmente';
+                    document.getElementById('catalog-status').textContent = 'Local catalog is empty · refresh it manually';
                     return;
                 }
                 const catalog = JSON.parse(cached);
-                if (!Array.isArray(catalog.symbols)) throw new Error('Formato de caché no válido');
+                if (!Array.isArray(catalog.symbols)) throw new Error('Invalid cache format');
                 tickerCatalog = catalog.symbols;
-                const updated = catalog.updated_at ? new Date(catalog.updated_at).toLocaleString('es-ES') : 'fecha desconocida';
-                document.getElementById('catalog-status').textContent = `${tickerCatalog.length.toLocaleString('es-ES')} tickers · ${updated}`;
+                const updated = catalog.updated_at ? new Date(catalog.updated_at).toLocaleString('en-GB') : 'unknown date';
+                document.getElementById('catalog-status').textContent = `${tickerCatalog.length.toLocaleString('en-GB')} tickers · ${updated}`;
             } catch (error) {
-                console.error('No se pudo leer el catálogo local:', error);
-                document.getElementById('catalog-status').textContent = 'No se pudo leer la caché local; actualízala para reemplazarla';
+                console.error('Could not read the local catalog:', error);
+                document.getElementById('catalog-status').textContent = 'Could not read the local cache; refresh the catalog to replace it';
             }
         }
 
         function searchTickers(query) {
             const results = document.getElementById('ticker-results');
-            const normalizedQuery = query.trim().toLocaleLowerCase('es');
+            const normalizedQuery = query.trim().toLocaleLowerCase('en');
             results.replaceChildren();
             if (!normalizedQuery) {
                 results.classList.add('hidden');
@@ -443,10 +810,10 @@
             }
 
             const matches = tickerCatalog.filter(item =>
-                `${item.symbol} ${item.displaySymbol} ${item.description}`.toLocaleLowerCase('es').includes(normalizedQuery)
+                `${item.symbol} ${item.displaySymbol} ${item.description}`.toLocaleLowerCase('en').includes(normalizedQuery)
             ).slice(0, 50);
             if (!matches.length) {
-                results.textContent = tickerCatalog.length ? 'Sin coincidencias en la caché local.' : 'No hay catálogo local. Usa “Actualizar catálogo” para descargarlo.';
+                results.textContent = tickerCatalog.length ? 'No matches in the local cache.' : 'No local catalog. Use “Refresh catalog” to download it.';
             } else {
                 for (const item of matches) {
                     const row = document.createElement('div');
@@ -468,34 +835,54 @@
         async function refreshTickerCatalog() {
             const button = document.getElementById('refresh-catalog');
             button.disabled = true;
-            document.getElementById('catalog-status').textContent = 'Descargando catálogo de Finnhub…';
+            document.getElementById('catalog-status').textContent = 'Downloading the Finnhub catalog…';
             try {
                 const response = await fetch('/api/catalog/refresh?exchange=US', { method: 'POST' });
                 const payload = await response.json();
                 if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
-                if (!Array.isArray(payload.symbols)) throw new Error('Respuesta de catálogo no válida');
+                if (!Array.isArray(payload.symbols)) throw new Error('Invalid catalog response');
                 localStorage.setItem(catalogStorageKey, JSON.stringify(payload));
                 readCachedCatalog();
                 searchTickers(document.getElementById('ticker-search').value);
             } catch (error) {
-                console.error('No se pudo actualizar el catálogo Finnhub:', error);
-                document.getElementById('catalog-status').textContent = `Error al actualizar el catálogo: ${error.message}`;
+                console.error('Could not refresh the Finnhub catalog:', error);
+                document.getElementById('catalog-status').textContent = `Catalog refresh failed: ${error.message}`;
             } finally {
                 button.disabled = false;
             }
         }
 
+        const portfolioTableBody = document.getElementById('portfolio-table-body');
+        const mobilePositionList = document.getElementById('mobile-list');
+        const assetHistoryDialog = document.getElementById('asset-history-dialog');
+        [portfolioTableBody, mobilePositionList].forEach(container => {
+            container.addEventListener('click', event => {
+                const position = event.target.closest('[data-isin]');
+                if (position) openAssetHistory(position.dataset.isin);
+            });
+            container.addEventListener('keydown', event => {
+                if ((event.key === 'Enter' || event.key === ' ') && event.target.matches('[data-isin]')) {
+                    event.preventDefault();
+                    openAssetHistory(event.target.dataset.isin);
+                }
+            });
+        });
+        assetHistoryDialog.addEventListener('click', event => {
+            if (event.target === assetHistoryDialog) closeAssetHistory();
+        });
+
         try {
             const savedProvider = localStorage.getItem(providerStorageKey);
             if (validProviders.has(savedProvider)) currentProvider = savedProvider;
         } catch (error) {
-            console.error('No se pudo leer la fuente guardada:', error);
-            setProviderPreferenceWarning('No se pudo leer la fuente guardada; se usará Yahoo Finance');
+            console.error('Could not read the saved provider:', error);
+            setProviderPreferenceWarning('Could not read the saved provider; Yahoo Finance will be used');
         }
         document.getElementById('market-provider').value = currentProvider;
         readCachedCatalog();
         if (currentProvider === 'yahoo') connectMarketStream();
         refreshData();
+        loadPortfolioHistory('1d');
     </script>
 </body>
 </html>

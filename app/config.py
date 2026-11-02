@@ -1,8 +1,8 @@
-"""Configuración compartida del proyecto.
+"""Shared project configuration.
 
-La configuración local del proyecto tiene prioridad. Si no existe, se carga
-el entorno global compartido definido por ``AI_WORKSTATION_HOME`` o por la
-ubicación canónica ``E:\\Proyectos\\ai-workstation``.
+The project-local configuration takes precedence. If it does not exist, the
+shared global environment is loaded from ``AI_WORKSTATION_HOME`` or the
+canonical location ``E:\\Proyectos\\ai-workstation``.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ GLOBAL_ENV_FILE = GLOBAL_HOME / ".env"
 
 
 def load_configuration() -> Path | None:
-    """Carga el entorno local y después el global sin sobrescribir variables locales."""
+    """Load local and then global environment variables without overwriting existing values."""
     local_exists = LOCAL_ENV_FILE.exists()
     if local_exists:
         load_dotenv(LOCAL_ENV_FILE, override=False)

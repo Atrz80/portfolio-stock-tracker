@@ -1,10 +1,12 @@
 import os
 import json
 import asyncio
+from bisect import bisect_right
+from concurrent.futures import ThreadPoolExecutor
 import re
 import threading
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -13,9 +15,14 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from google import generativeai as genai
 from .config import load_configuration
-from .market_data import MarketDataError, market_data_client, YAHOO_TICKER_MAP
+from .market_data import (
+    MarketDataError,
+    YAHOO_FX_SYMBOLS,
+    market_data_client,
+    YAHOO_TICKER_MAP,
+)
 from .finnhub_client import FinnhubMarketDataClient, FINNHUB_TICKER_MAP
-
+from .market_agents import position_cost_basis
 from .market_stream import MarketStreamService
 
 load_configuration()
@@ -64,6 +71,7 @@ class StockPosition(BaseModel):
     name: str
     ticker: str
     shares: float
+    costBasis: Optional[float] = None
     price: float
     value: float
     gain: float
@@ -109,7 +117,7 @@ def _position_symbol(item: dict, provider: str = "yahoo") -> str:
     ticker_map = FINNHUB_TICKER_MAP if provider.lower() == "finnhub" else YAHOO_TICKER_MAP
     symbol = ticker_map.get(isin) or YAHOO_TICKER_MAP.get(isin)
     if not symbol:
-        raise MarketDataError(f"No existe un ticker de mercado configurado para {isin}")
+        raise MarketDataError(f"No market ticker is configured for {isin}")
     return symbol
 
 
@@ -122,9 +130,7 @@ def _calculate_realtime_position(item: dict, provider: str = "yahoo") -> dict:
 
     shares = float(item["shares"])
     new_value = price_eur * shares
-    stored_price_eur = float(item["price"])
-    stored_gain = float(item.get("gain", 0.0))
-    initial_cost = stored_price_eur * shares - stored_gain
+    initial_cost = position_cost_basis(item)
     new_gain = new_value - initial_cost
     new_gain_pct = (new_gain / initial_cost * 100) if initial_cost else 0.0
 
@@ -152,7 +158,7 @@ def _calculate_realtime_position(item: dict, provider: str = "yahoo") -> dict:
 def get_realtime_portfolio(provider: str = "yahoo"):
     provider = provider.strip().lower()
     if provider not in {"yahoo", "finnhub"}:
-        raise HTTPException(status_code=400, detail="Proveedor no válido: usa yahoo o finnhub")
+        raise HTTPException(status_code=400, detail="Invalid provider: use yahoo or finnhub")
     data = load_portfolio_data()
     try:
         updated_items = [_calculate_realtime_position(item, provider) for item in data]
@@ -166,11 +172,272 @@ def get_realtime_portfolio(provider: str = "yahoo"):
     return updated_items
 
 
+def _historical_portfolio_value(
+    portfolio: list[dict],
+    market_histories: dict[str, tuple[str, list[dict[str, float | int]]]],
+    fx_histories: dict[str, list[dict[str, float | int]]],
+    timestamps: list[int],
+) -> list[dict[str, float | int]]:
+    indexed_histories = {}
+    for symbol, (currency, points) in market_histories.items():
+        indexed_histories[symbol] = (
+            currency,
+            [int(point["timestamp"]) for point in points],
+            [float(point["price"]) for point in points],
+        )
+    indexed_fx = {
+        symbol: (
+            [int(point["timestamp"]) for point in points],
+            [float(point["price"]) for point in points],
+        )
+        for symbol, points in fx_histories.items()
+    }
+
+    def latest_value(
+        values: tuple[list[int], list[float]], timestamp: int
+    ) -> float | None:
+        index = bisect_right(values[0], timestamp) - 1
+        return values[1][index] if index >= 0 else None
+
+    result = []
+    for timestamp in timestamps:
+        day = datetime.fromtimestamp(timestamp, timezone.utc).date()
+        total = 0.0
+        for position in portfolio:
+            symbol = _position_symbol(position)
+            transactions = position.get("transactions") or []
+            shares = sum(
+                float(transaction["shares"])
+                for transaction in transactions
+                if date.fromisoformat(transaction["date"]) <= day
+            )
+            if shares <= 0 or symbol not in indexed_histories:
+                continue
+
+            currency, quote_timestamps, prices = indexed_histories[symbol]
+            price_index = bisect_right(quote_timestamps, timestamp) - 1
+            if price_index < 0:
+                continue
+            market_price = prices[price_index]
+
+            if currency == "EUR":
+                fx_rate = 1.0
+            elif currency == "JPY":
+                jpy_usd_symbol = YAHOO_FX_SYMBOLS["JPY"]
+                eur_usd_symbol = YAHOO_FX_SYMBOLS["USD"]
+                jpy_usd = latest_value(indexed_fx[jpy_usd_symbol], timestamp)
+                eur_usd = latest_value(indexed_fx[eur_usd_symbol], timestamp)
+                if jpy_usd is None or eur_usd is None or eur_usd <= 0:
+                    continue
+                fx_rate = jpy_usd / eur_usd
+            else:
+                fx_symbol = YAHOO_FX_SYMBOLS.get(currency)
+                if not fx_symbol or fx_symbol not in indexed_fx:
+                    continue
+                fx_quote = latest_value(indexed_fx[fx_symbol], timestamp)
+                if fx_quote is None:
+                    continue
+                fx_rate = 1.0 / fx_quote if currency == "USD" else fx_quote
+            total += market_price * fx_rate * shares
+        result.append({"timestamp": timestamp, "value": round(total, 2)})
+    return result
+
+
+@app.get("/api/portfolio/history")
+def get_portfolio_history(period: str = "1m", isin: str | None = None):
+    periods = {
+        "1d": (timedelta(days=1), "5m"),
+        "1w": (timedelta(days=7), "30m"),
+        "1m": (timedelta(days=31), "1d"),
+        "1y": (timedelta(days=365), "1d"),
+        "ytd": (None, "1d"),
+        "max": (None, "1d"),
+    }
+    if period not in periods:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported period. Use 1d, 1w, 1m, 1y, ytd, or max.",
+        )
+
+    portfolio = load_portfolio_data()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="The portfolio has no positions.")
+
+    selected_positions = portfolio
+    asset = None
+    if isin:
+        normalized_isin = isin.strip().upper()
+        selected_positions = [
+            position
+            for position in portfolio
+            if _position_isin(position).upper() == normalized_isin
+        ]
+        if not selected_positions:
+            raise HTTPException(status_code=404, detail="The requested position was not found.")
+        selected_position = selected_positions[0]
+        asset = {
+            "name": selected_position.get("name", normalized_isin),
+            "isin": normalized_isin,
+            "cost_basis": position_cost_basis(selected_position),
+        }
+
+    transactions_by_symbol = {}
+    try:
+        for position in selected_positions:
+            transactions = position.get("transactions") or []
+            if not transactions:
+                raise MarketDataError(
+                    f"Purchase history is missing for {_position_isin(position)}"
+                )
+            for transaction in transactions:
+                date.fromisoformat(transaction["date"])
+                float(transaction["shares"])
+            transactions_by_symbol[_position_symbol(position)] = transactions
+    except (KeyError, TypeError, ValueError, MarketDataError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    if asset:
+        asset["market_symbol"] = next(iter(transactions_by_symbol))
+
+    first_transaction = min(
+        date.fromisoformat(transaction["date"])
+        for transactions in transactions_by_symbol.values()
+        for transaction in transactions
+    )
+    now = datetime.now(timezone.utc)
+    window, interval = periods[period]
+    if period == "ytd":
+        requested_start = date(now.year, 1, 1)
+    elif period == "max":
+        requested_start = first_transaction
+    else:
+        requested_start = (now - window).date()
+    start_date = max(requested_start, first_transaction)
+    start_timestamp = int(
+        datetime.combine(start_date, datetime.min.time(), timezone.utc).timestamp()
+    )
+    end_timestamp = int(now.timestamp())
+    fetch_start = max(
+        int(datetime.combine(first_transaction, datetime.min.time(), timezone.utc).timestamp()),
+        start_timestamp - 7 * 86400,
+    )
+
+    symbols = list(transactions_by_symbol)
+    try:
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = {
+                symbol: executor.submit(
+                    market_data_client.get_history,
+                    symbol,
+                    fetch_start,
+                    end_timestamp,
+                    interval,
+                )
+                for symbol in symbols
+            }
+            market_histories = {symbol: future.result() for symbol, future in futures.items()}
+
+        currencies = {currency for currency, _ in market_histories.values()}
+        fx_symbols = set()
+        for currency in currencies:
+            if currency == "JPY":
+                fx_symbols.update((YAHOO_FX_SYMBOLS["JPY"], YAHOO_FX_SYMBOLS["USD"]))
+            elif currency != "EUR":
+                fx_symbol = YAHOO_FX_SYMBOLS.get(currency)
+                if fx_symbol:
+                    fx_symbols.add(fx_symbol)
+                else:
+                    raise MarketDataError(f"No historical currency conversion is available for {currency}")
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            fx_futures = {
+                symbol: executor.submit(
+                    market_data_client.get_history,
+                    symbol,
+                    fetch_start,
+                    end_timestamp,
+                    interval,
+                )
+                for symbol in fx_symbols
+            }
+            fx_histories = {
+                symbol: future.result()[1] for symbol, future in fx_futures.items()
+            }
+    except MarketDataError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    timestamps = sorted(
+        {
+            int(point["timestamp"])
+            for _, points in market_histories.values()
+            for point in points
+            if start_timestamp <= int(point["timestamp"]) <= end_timestamp
+        }
+    )
+    if not timestamps:
+        raise HTTPException(
+            status_code=503,
+            detail="Yahoo Finance returned no historical prices for the selected period.",
+        )
+
+    points = _historical_portfolio_value(
+        selected_positions, market_histories, fx_histories, timestamps
+    )
+    points = [point for point in points if float(point["value"]) > 0]
+    if not points:
+        raise HTTPException(
+            status_code=503,
+            detail="No portfolio value could be calculated for the selected period.",
+        )
+    first_value = float(points[0]["value"])
+    last_value = float(points[-1]["value"])
+    highest_point = max(points, key=lambda point: float(point["value"]))
+    lowest_point = min(points, key=lambda point: float(point["value"]))
+    summary = {
+        "start_value": first_value,
+        "end_value": last_value,
+        "change": round(last_value - first_value, 2),
+        "change_pct": round((last_value / first_value - 1) * 100, 2) if first_value else 0.0,
+        "high": float(highest_point["value"]),
+        "high_timestamp": int(highest_point["timestamp"]),
+        "low": float(lowest_point["value"]),
+        "low_timestamp": int(lowest_point["timestamp"]),
+    }
+    if asset:
+        current_date = now.date()
+        asset_transactions = transactions_by_symbol[asset["market_symbol"]]
+        asset["shares"] = sum(
+            float(transaction["shares"])
+            for transaction in asset_transactions
+            if date.fromisoformat(transaction["date"]) <= current_date
+        )
+        asset["last_value"] = last_value
+        asset["unrealized_gain"] = round(last_value - asset["cost_basis"], 2)
+        asset["unrealized_gain_pct"] = (
+            round((last_value / asset["cost_basis"] - 1) * 100, 2)
+            if asset["cost_basis"]
+            else 0.0
+        )
+
+    return {
+        "period": period,
+        "currency": "EUR",
+        "available_from": first_transaction.isoformat(),
+        "asset": asset,
+        "summary": summary,
+        "points": points,
+        "note": (
+            "Historical market value is reconstructed from recorded purchases and "
+            "Yahoo Finance prices. Cash balance is excluded."
+        ),
+    }
+
+
 @app.get("/api/catalog")
 def get_ticker_catalog(exchange: str = "US"):
     exchange = exchange.strip().upper()
     if not re.fullmatch(r"[A-Z0-9._-]{1,10}", exchange):
-        raise HTTPException(status_code=400, detail="Código de mercado no válido")
+        raise HTTPException(status_code=400, detail="Invalid market symbol")
     store = _read_ticker_catalog_store()
     entry = store.get("exchanges", {}).get(exchange, {})
     return {
@@ -184,7 +451,7 @@ def get_ticker_catalog(exchange: str = "US"):
 def refresh_ticker_catalog(exchange: str = "US"):
     exchange = exchange.strip().upper()
     if not re.fullmatch(r"[A-Z0-9._-]{1,10}", exchange):
-        raise HTTPException(status_code=400, detail="Código de mercado no válido")
+        raise HTTPException(status_code=400, detail="Invalid market symbol")
     try:
         symbols = finnhub_data_client.get_ticker_catalog(exchange)
     except MarketDataError as exc:
@@ -215,11 +482,11 @@ def _read_ticker_catalog_store() -> dict:
     except (OSError, json.JSONDecodeError) as exc:
         raise HTTPException(
             status_code=500,
-            detail="No se pudo leer el catálogo local de tickers",
+            detail="Could not read the local ticker catalog",
         ) from exc
 
     if not isinstance(store, dict):
-        raise HTTPException(status_code=500, detail="El catálogo local de tickers no es válido")
+        raise HTTPException(status_code=500, detail="The local ticker catalog is invalid")
     if isinstance(store.get("exchanges"), dict):
         return store
 

@@ -1,8 +1,8 @@
-"""Memoria persistente y local para los agentes.
+"""Persistent local memory for agents.
 
-El almacenamiento usa JSONL para que sea append-only, recuperable de forma
-simple y compatible entre sesiones y sistemas Windows/Linux. La búsqueda es
- léxica y no depende de clases internas de CrewAI, cuya API cambia entre versiones.
+Storage uses JSONL to remain append-only, easy to recover, and compatible
+across sessions and Windows/Linux systems. Search is lexical and does not rely
+on CrewAI internal classes, whose APIs change between versions.
 """
 
 from __future__ import annotations
@@ -29,10 +29,10 @@ def _tokens(value: str) -> set[str]:
 
 
 def remember(text: str, source: str = "user_interaction") -> dict[str, Any]:
-    """Guarda un hecho o contexto y devuelve un resultado estructurado."""
+    """Store a fact or context and return a structured result."""
     text = str(text).strip()
     if not text:
-        return {"status": "error", "message": "El texto de memoria está vacío"}
+        return {"status": "error", "message": "Memory text cannot be empty"}
 
     record = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -64,7 +64,7 @@ def recall(query: str, limit: int = 5) -> list[dict[str, Any]]:
                     if isinstance(record, dict) and record.get("text"):
                         records.append(record)
     except OSError as exc:
-        print(f"Error leyendo memoria persistente: {exc}")
+        print(f"Error reading persistent memory: {exc}")
         return []
 
     if not query_tokens:
@@ -78,4 +78,3 @@ def recall(query: str, limit: int = 5) -> list[dict[str, Any]]:
     ranked = sorted(records, key=score, reverse=True)
     relevant = [record for record in ranked if score(record)[0] > 0]
     return (relevant or records[-limit:])[:limit]
-

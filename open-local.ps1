@@ -27,7 +27,7 @@ $BrowserCandidates = @(
 ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
 
 if (-not $BrowserCandidates) {
-    throw 'No se encontro Google Chrome ni Microsoft Edge para abrir el dashboard.'
+    throw 'Google Chrome or Microsoft Edge could not be found to open the dashboard.'
 }
 
 $BrowserPath = $BrowserCandidates | Select-Object -First 1
@@ -42,7 +42,7 @@ $CancelHandler = [ConsoleCancelEventHandler]{
 }
 
 try {
-    Write-Host 'Iniciando los servicios locales...' -ForegroundColor Cyan
+    Write-Host 'Starting local services...' -ForegroundColor Cyan
     try {
         & (Join-Path $WorkDir 'start-all.ps1') -GatewayPort $GatewayPort -ApiPort $ApiPort -TimeoutSeconds $TimeoutSeconds
     } catch {
@@ -65,14 +65,14 @@ try {
 
     $currentManifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
     if (-not $currentManifest.startedAt -or $currentManifest.startedAt -eq $PreviousStartedAt) {
-        throw 'No se pudo confirmar que el lanzador inicio los servicios del proyecto.'
+        throw 'Could not confirm that the launcher started this project''s services.'
     }
     $ServicesStarted = $true
 
     New-Item -ItemType Directory -Path $ProfilePath -Force | Out-Null
     Write-Host ''
     Write-Host "Abriendo $DashboardUrl" -ForegroundColor Green
-    Write-Host 'Cierra la ventana del navegador o pulsa Ctrl+C para apagar la aplicacion.' -ForegroundColor Cyan
+    Write-Host 'Close the browser window or press Ctrl+C to stop the application.' -ForegroundColor Cyan
     [Console]::add_CancelKeyPress($CancelHandler)
 
     $BrowserArguments = @(
@@ -100,7 +100,7 @@ try {
     try {
         if ($ServicesStarted) {
             Write-Host ''
-            Write-Host 'Deteniendo los servicios locales...' -ForegroundColor Cyan
+            Write-Host 'Stopping local services...' -ForegroundColor Cyan
             & (Join-Path $WorkDir 'stop-all.ps1')
         }
     } finally {
@@ -108,7 +108,7 @@ try {
             try {
                 Remove-Item -LiteralPath $ProfilePath -Recurse -Force -ErrorAction Stop
             } catch {
-                Write-Warning "No se pudo limpiar el perfil temporal del navegador: $($_.Exception.Message)"
+                Write-Warning "Could not clean up the temporary browser profile: $($_.Exception.Message)"
             }
         }
     }

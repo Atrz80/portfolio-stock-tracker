@@ -11,7 +11,7 @@ $ExpectedPython = Join-Path $RuntimeRoot 'venv\Scripts\python.exe'
 $ExpectedFreellmpool = Join-Path $RuntimeRoot 'venv\Scripts\freellmpool.exe'
 
 if (-not (Test-Path $ManifestPath)) {
-    if (-not $Quiet) { Write-Host 'No hay manifiesto de servicios; nada que detener.' }
+    if (-not $Quiet) { Write-Host 'No service manifest found; nothing to stop.' }
     exit 0
 }
 

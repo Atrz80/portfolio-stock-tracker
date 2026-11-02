@@ -1,7 +1,7 @@
 import json
 import urllib.request
 
-payload = json.dumps({"message": "Responde únicamente con la palabra OK"}).encode("utf-8")
+payload = json.dumps({"message": "Reply with only the word OK"}).encode("utf-8")
 request = urllib.request.Request(
     "http://127.0.0.1:8000/chat",
     data=payload,

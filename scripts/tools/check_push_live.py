@@ -1,8 +1,8 @@
-"""Verifica un pricing push real de Yahoo Finance.
+"""Verify a real Yahoo Finance pricing push.
 
-``BTC-USD`` se usa como referencia líquida 24/7 para certificar que el
-transporte WebSocket entrega cambios reales. Los activos del portfolio pueden
-estar cerrados y no emitir ticks durante una ventana concreta.
+``BTC-USD`` is used as a liquid 24/7 reference to confirm that the WebSocket
+transport delivers real updates. Portfolio assets may be closed and fail to
+emit ticks during a given time window.
 """
 
 from __future__ import annotations

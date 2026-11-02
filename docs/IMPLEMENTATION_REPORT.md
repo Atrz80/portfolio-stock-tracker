@@ -1,27 +1,33 @@
-# IMPLEMENTATION_REPORT.md - Reporte de Implementación de Arquitectura de 3 Pilares
+# IMPLEMENTATION_REPORT.md - Three-Pillar Architecture Implementation Report
 
-## 1. Versiones y Entorno
+## 1. Versions and Environment
 - **Python**: 3.11.9
 - **Pydantic**: 2.12.5
 - **CrewAI**: 1.15.33
 - **ChromaDB**: 1.5.9
 - **FastAPI / Starlette**: 0.162.0
 
-## 2. Cambios de Compatibilidad Aplicados (`COMPATIBILITY_FIXES.md`)
-- Validación y conversión estricta de `CrewOutput` a formatos estructurados mediante adaptadores seguros para prevenir fallos de tipado en FastAPI.
-- Aislamiento de directorios de almacenamiento persistente en `./storage/crewai_memory`.
+## 2. Applied Compatibility Changes (`COMPATIBILITY_FIXES.md`)
+- Strict validation and conversion of `CrewOutput` to structured formats using
+  safe adapters to prevent typing failures in FastAPI.
+- Isolation of persistent storage directories in `./storage/crewai_memory`.
 
-## 3. Pilares Implementados
-- **Pilar 1 (Memoria Persistente)**: Módulo `app/agent_memory.py` configurado con almacenamiento persistente local en disco (`CREWAI_STORAGE_DIR`) y respaldado con funciones `remember` y `recall`.
-- **Pilar 2 (Agencia de Agentes)**: Módulo `app/agency.py` con CrewAI integrado, utilizando `Process.sequential` y memoria compartida.
-- **Pilar 3 (Chat Gratuito con Freellmpool)**: Módulo `app/chat.py` utilizando el cliente HTTP compatible con el proxy de Freellmpool, modelo `"auto"` y recuperación contextual de memoria. Las credenciales se leen exclusivamente desde `.env`.
+## 3. Implemented Pillars
+- **Pillar 1 (Persistent Memory)**: `app/agent_memory.py` module configured
+  with persistent local disk storage (`CREWAI_STORAGE_DIR`) and backed by
+  `remember` and `recall` functions.
+- **Pillar 2 (Agent Agency)**: `app/agency.py` module with integrated CrewAI,
+  using `Process.sequential` and shared memory.
+- **Pillar 3 (Free Chat with Freellmpool)**: `app/chat.py` module using the
+  HTTP client compatible with the Freellmpool proxy, the `"auto"` model, and
+  contextual memory retrieval. Credentials are read exclusively from `.env`.
 
-## 4. Endpoints FastAPI Añadidos
+## 4. Added FastAPI Endpoints
 - `POST /memory/remember`
 - `POST /memory/recall`
 - `POST /agency/run`
 - `POST /chat`
 
-## 5. Validación
-- Pruebas E2E superadas exitosamente con persistencia de memoria entre sesiones y pasarela de freellmpool configurada.
-
+## 5. Validation
+- E2E tests passed successfully with memory persistence between sessions and
+  the freellmpool gateway configured.

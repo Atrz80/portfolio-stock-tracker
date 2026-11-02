@@ -1,4 +1,4 @@
-# Cliente freellmpool con rotación automática y reintentos resilientes.
+# Freellmpool client with automatic rotation and resilient retries.
 
 import random
 import time
@@ -11,23 +11,23 @@ class FreellmpoolClient:
     def __init__(self, base_url: str, api_key: str):
         self.base_url = base_url.rstrip('/')
         self.api_key = api_key
-        self.modelos_disponibles = [
+        self.available_models = [
             'auto', 'fast', 'quality', 'fair', 'agent', 'spread'
         ]
-        self.indice_modelo_actual = 0
-        self.historial_exitoso: list[dict[str, Any]] = []
-        self.max_reintentos = 3
+        self.current_model_index = 0
+        self.success_history: list[dict[str, Any]] = []
+        self.max_retries = 3
         self.timeout = 90
 
-    def _obtener_modelo_siguiente(self) -> str:
-        modelo = self.modelos_disponibles[self.indice_modelo_actual]
-        self.indice_modelo_actual = (self.indice_modelo_actual + 1) % len(
-            self.modelos_disponibles
+    def _get_next_model(self) -> str:
+        model = self.available_models[self.current_model_index]
+        self.current_model_index = (self.current_model_index + 1) % len(
+            self.available_models
         )
-        return modelo
+        return model
 
     @staticmethod
-    def _extraer_error(response: requests.Response) -> str:
+    def _extract_error(response: requests.Response) -> str:
         try:
             body = response.json()
             error = body.get('error', body) if isinstance(body, dict) else body
@@ -37,31 +37,31 @@ class FreellmpoolClient:
         except (ValueError, TypeError):
             return response.text[:300]
 
-    def chat_completar(
+    def chat_complete(
         self,
-        mensaje: str,
+        message: str,
         system_prompt: str | None = None,
-        max_reintentos: int | None = None,
+        max_retries: int | None = None,
     ) -> str:
-        if max_reintentos is None:
-            max_reintentos = self.max_reintentos
-        max_reintentos = max(1, int(max_reintentos))
+        if max_retries is None:
+            max_retries = self.max_retries
+        max_retries = max(1, int(max_retries))
 
-        mensajes: list[dict[str, str]] = []
+        messages: list[dict[str, str]] = []
         if system_prompt:
-            mensajes.append({'role': 'system', 'content': system_prompt})
-        mensajes.append({'role': 'user', 'content': str(mensaje)})
+            messages.append({'role': 'system', 'content': system_prompt})
+        messages.append({'role': 'user', 'content': str(message)})
 
         url = f'{self.base_url}/chat/completions'
         headers = {
             'Authorization': f'Bearer {self.api_key}',
             'Content-Type': 'application/json',
         }
-        ultimo_error = 'desconocido'
+        last_error = 'unknown'
 
-        for intento in range(max_reintentos):
-            modelo_actual = self._obtener_modelo_siguiente()
-            payload = {'model': modelo_actual, 'messages': mensajes}
+        for attempt in range(max_retries):
+            current_model = self._get_next_model()
+            payload = {'model': current_model, 'messages': messages}
             try:
                 response = requests.post(
                     url, headers=headers, json=payload, timeout=self.timeout
@@ -69,39 +69,39 @@ class FreellmpoolClient:
                 if response.ok:
                     data = response.json()
                     reply = data['choices'][0]['message']['content']
-                    self.historial_exitoso.append(
-                        {'modelo': modelo_actual, 'intento': intento}
+                    self.success_history.append(
+                        {'model': current_model, 'attempt': attempt}
                     )
                     return str(reply)
 
-                ultimo_error = self._extraer_error(response)
+                last_error = self._extract_error(response)
                 status = response.status_code
                 if status in (402, 429):
                     print(
-                        f'Modelo {modelo_actual}: cuota/pago {status}; '
-                        'probando otro modelo con backoff.'
+                        f'Model {current_model}: quota/payment error {status}; '
+                        'trying another model with backoff.'
                     )
                 else:
                     print(
-                        f'Modelo {modelo_actual} falló ({status}): '
-                        f'{ultimo_error[:160]}'
+                        f'Model {current_model} failed ({status}): '
+                        f'{last_error[:160]}'
                     )
             except requests.RequestException as exc:
-                ultimo_error = str(exc)
-                print(f'Modelo {modelo_actual}: error de red: {ultimo_error[:160]}')
+                last_error = str(exc)
+                print(f'Model {current_model}: network error: {last_error[:160]}')
 
-            if intento + 1 < max_reintentos:
-                espera = min(2 ** intento + random.uniform(0, 0.5), 10)
-                time.sleep(espera)
+            if attempt + 1 < max_retries:
+                delay = min(2 ** attempt + random.uniform(0, 0.5), 10)
+                time.sleep(delay)
 
         return (
-            'Error: No fue posible completar la solicitud después de '
-            f'{max_reintentos} intentos. Último error: {ultimo_error[:200]}'
+            'Error: Could not complete the request after '
+            f'{max_retries} attempts. Last error: {last_error[:200]}'
         )
 
-    def obtener_estado(self) -> dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
-            'modelo_actual': self.modelos_disponibles[self.indice_modelo_actual],
-            'indice': self.indice_modelo_actual,
-            'historial_exitoso': len(self.historial_exitoso),
+            'current_model': self.available_models[self.current_model_index],
+            'index': self.current_model_index,
+            'successful_requests': len(self.success_history),
         }

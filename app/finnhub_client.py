@@ -1,7 +1,7 @@
-"""Proveedor de cotizaciones usando Finnhub.io API.
+"""Quote provider using the Finnhub.io API.
 
-Finnhub no ofrece WebSocket de cotizaciones con el plan gratuito. Este cliente
-usa REST y, por tanto, la vista Finnhub se actualiza de forma explícita.
+Finnhub does not offer quote WebSockets on its free plan. This client uses REST,
+so the Finnhub view is refreshed explicitly.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ FINNHUB_TICKER_MAP = {
     "IE00BKM4GZ66": "EIMI.L",
     "JP3733000008": "6701.T",
     "JP3419400001": "4204.T",
-    "IE00B4RFH31": "IUSN.DE",
+    "IE00BF4RFH31": "IUSN.DE",
     "JP3379550001": "5016.T",
 }
 FINNHUB_CURRENCY_BY_SYMBOL = {
@@ -69,7 +69,7 @@ class FinnhubMarketDataClient:
         symbol = symbol.strip().upper()
         if not self.configured:
             raise MarketDataError(
-                "Finnhub no está configurado. Añade FINNHUB_API_KEY al entorno global."
+                "Finnhub is not configured. Add FINNHUB_API_KEY to the global environment."
             )
         now = time.monotonic()
         with self._lock:
@@ -83,26 +83,26 @@ class FinnhubMarketDataClient:
         return quote
 
     def get_fx_rate(self, currency: str) -> float:
-        """Devuelve cuántas unidades EUR vale una unidad de la moneda."""
+        """Return the number of euros represented by one unit of the currency."""
         currency = currency.upper()
         if currency == "EUR":
             return 1.0
         symbol = FINNHUB_FX_SYMBOLS.get(currency)
         if not symbol:
-            raise MarketDataError(f"No hay conversión disponible para {currency}")
+            raise MarketDataError(f"No conversion is available for {currency}")
         quote = self.get_quote(symbol)
         if not math.isfinite(quote.price) or quote.price <= 0:
-            raise MarketDataError(f"Finnhub devolvió una tasa EUR/{currency} inválida")
+            raise MarketDataError(f"Finnhub returned an invalid EUR/{currency} rate")
         return 1.0 / quote.price
 
     def _fetch_quote(self, symbol: str) -> Quote:
         payload = self._request_json(
             FINNHUB_QUOTE_URL,
             {"symbol": symbol},
-            f"cotización de {symbol}",
+            f"quote for {symbol}",
         )
         if not isinstance(payload, dict):
-            raise MarketDataError(f"Finnhub devolvió una respuesta inválida para {symbol}")
+            raise MarketDataError(f"Finnhub returned an invalid response for {symbol}")
 
         try:
             price = float(payload.get("c"))
@@ -110,16 +110,16 @@ class FinnhubMarketDataClient:
                 float(payload["pc"]) if payload.get("pc") is not None else None
             )
         except (TypeError, ValueError) as exc:
-            raise MarketDataError(f"Finnhub no devolvió un precio válido para {symbol}") from exc
+            raise MarketDataError(f"Finnhub returned no valid price for {symbol}") from exc
         timestamp = payload.get("t")
         if not math.isfinite(price) or price <= 0:
-            raise MarketDataError(f"Finnhub no devolvió un precio válido para {symbol}")
+            raise MarketDataError(f"Finnhub returned no valid price for {symbol}")
         if previous_close is not None and not math.isfinite(previous_close):
             previous_close = None
         try:
             quote_timestamp = int(timestamp) if timestamp else int(time.time())
         except (TypeError, ValueError) as exc:
-            raise MarketDataError(f"Finnhub devolvió una fecha inválida para {symbol}") from exc
+            raise MarketDataError(f"Finnhub returned an invalid timestamp for {symbol}") from exc
 
         currency = FINNHUB_CURRENCY_BY_SYMBOL.get(symbol)
         if currency is None:
@@ -141,10 +141,10 @@ class FinnhubMarketDataClient:
         payload = self._request_json(
             FINNHUB_SYMBOLS_URL,
             {"exchange": exchange},
-            f"catálogo de tickers ({exchange})",
+            f"ticker catalog ({exchange})",
         )
         if not isinstance(payload, list):
-            raise MarketDataError("Finnhub devolvió un catálogo de tickers inválido")
+            raise MarketDataError("Finnhub returned an invalid ticker catalog")
 
         catalog = []
         for item in payload:
@@ -163,13 +163,13 @@ class FinnhubMarketDataClient:
                 }
             )
         if not catalog:
-            raise MarketDataError(f"Finnhub devolvió un catálogo vacío para {exchange}")
+            raise MarketDataError(f"Finnhub returned an empty ticker catalog for {exchange}")
         return catalog
 
     def _request_json(self, url: str, params: dict[str, str], resource: str) -> Any:
         if not self.configured:
             raise MarketDataError(
-                "Finnhub no está configurado. Añade FINNHUB_API_KEY al entorno global."
+                "Finnhub is not configured. Add FINNHUB_API_KEY to the global environment."
             )
 
         last_error: MarketDataError | None = None
@@ -182,7 +182,7 @@ class FinnhubMarketDataClient:
                 )
             except requests.RequestException as exc:
                 last_error = MarketDataError(
-                    f"Error de conexión con Finnhub al consultar {resource}"
+                    f"Connection error while requesting {resource} from Finnhub"
                 )
                 if attempt < self.max_retries:
                     time.sleep(2 ** attempt)
@@ -191,13 +191,13 @@ class FinnhubMarketDataClient:
 
             if response.status_code in (401, 403):
                 raise MarketDataError(
-                    "Finnhub rechazó la API key o el plan no permite esta consulta"
+                    "Finnhub rejected the API key or the plan does not allow this request"
                 )
             if response.status_code == 404:
-                raise MarketDataError(f"Finnhub no encontró {resource}")
+                raise MarketDataError(f"Finnhub could not find {resource}")
             if response.status_code in (402, 429) or response.status_code >= 500:
                 last_error = MarketDataError(
-                    f"Finnhub respondió HTTP {response.status_code} al consultar {resource}"
+                    f"Finnhub returned HTTP {response.status_code} while requesting {resource}"
                 )
                 if attempt < self.max_retries:
                     time.sleep(2 ** attempt)
@@ -205,13 +205,13 @@ class FinnhubMarketDataClient:
                 raise last_error
             if response.status_code >= 400:
                 raise MarketDataError(
-                    f"Finnhub respondió HTTP {response.status_code} al consultar {resource}"
+                    f"Finnhub returned HTTP {response.status_code} while requesting {resource}"
                 )
             try:
                 return response.json()
             except ValueError as exc:
                 raise MarketDataError(
-                    f"Finnhub devolvió JSON inválido al consultar {resource}"
+                    f"Finnhub returned invalid JSON while requesting {resource}"
                 ) from exc
 
-        raise MarketDataError(f"No se pudo obtener {resource}: {last_error}")
+        raise MarketDataError(f"Could not retrieve {resource}: {last_error}")

@@ -28,7 +28,7 @@ fun PriceChartCard(stockSymbol: String, historicalPrices: List<Float>) {
                 .padding(16.dp)
         ) {
             Text(
-                text = "Evolución en Tiempo Real: $stockSymbol",
+                text = "Real-time performance: $stockSymbol",
                 style = MaterialTheme.typography.titleSmall
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -38,7 +38,7 @@ fun PriceChartCard(stockSymbol: String, historicalPrices: List<Float>) {
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = androidx.compose.ui.Alignment.Center
                 ) {
-                    Text("Cargando datos de gráfico...", color = Color.Gray)
+                    Text("Loading chart data...", color = Color.Gray)
                 }
             } else {
                 SimpleLineChart(prices = historicalPrices)
@@ -87,7 +87,7 @@ fun SimpleLineChart(prices: List<Float>) {
         fillPath.lineTo(width, height)
         fillPath.close()
 
-        // Dibujar área sombreada bajo la línea
+        // Draw the shaded area beneath the line.
         drawPath(
             path = fillPath,
             brush = Brush.verticalGradient(
@@ -97,7 +97,7 @@ fun SimpleLineChart(prices: List<Float>) {
             )
         )
 
-        // Dibujar línea del gráfico
+        // Draw the chart line.
         drawPath(
             path = path,
             color = lineColor,
