@@ -1,6 +1,7 @@
 package com.example.portfolioapp.network
 
 import com.example.portfolioapp.data.CatalogRefreshResponse
+import com.example.portfolioapp.data.PortfolioHistory
 import com.example.portfolioapp.data.Stock
 import com.example.portfolioapp.data.TickerCatalog
 import retrofit2.Retrofit
@@ -19,13 +20,19 @@ interface PortfolioApiService {
     @POST("api/catalog/refresh")
     suspend fun refreshCatalog(@Query("exchange") exchange: String): CatalogRefreshResponse
 
-    companion object {
-        // En emulador Android, localhost del PC es 10.0.2.2
-        private const val BASE_URL = "http://10.0.2.2:8000/"
+    @GET("api/portfolio/history")
+    suspend fun getPortfolioHistory(
+        @Query("period") period: String,
+        @Query("isin") isin: String? = null
+    ): PortfolioHistory
 
-        fun create(): PortfolioApiService {
+    companion object {
+        // Android emulator alias; replace this with the PC's LAN URL on a physical phone.
+        const val DEFAULT_BASE_URL = "http://10.0.2.2:8000/"
+
+        fun create(baseUrl: String = DEFAULT_BASE_URL): PortfolioApiService {
             val retrofit = Retrofit.Builder()
-                .baseUrl(BASE_URL)
+                .baseUrl(baseUrl)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()
             return retrofit.create(PortfolioApiService::class.java)

@@ -26,10 +26,16 @@ is retained and every change creates a timestamped backup under
 prevent accidental portfolio loss. Unlocking position management also enables
 recording additional purchases by shares, EUR cost, and trade date.
 
+The Android Compose app also includes 1D, 1W, 1M, 1Y, YTD, and ALL history
+filters, interactive portfolio and asset charts, and a settings menu for the
+quote provider, ticker catalog, and backend address. See
+[`../android_app/README.md`](../android_app/README.md) for installing and
+connecting it to the PC server.
+
 ## Test on a phone
 
-The responsive web dashboard is the recommended way to use the portfolio on a
-phone; it does not require installing an APK. On Windows, connect the PC and
+The responsive web dashboard and Android app can both be used on a phone. To
+use the web version without installing an APK, connect the PC and
 phone to the same trusted Wi-Fi, then launch `Abrir Portfolio Stock
 Tracker.bat` with `-ListenOnLan` (from PowerShell, quote the filename if
 needed). Confirm the LAN access prompt, leave the launcher window open, and
