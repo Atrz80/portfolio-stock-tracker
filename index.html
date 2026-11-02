@@ -235,6 +235,30 @@
                 </form>
             </dialog>
 
+            <dialog id="edit-position-dialog" class="rounded-2xl border border-gray-700 bg-gray-900 p-0 text-gray-100 shadow-2xl">
+                <form id="edit-position-form" class="w-[min(92vw,32rem)] space-y-4 p-5">
+                    <div>
+                        <h2 class="text-lg font-bold">Edit position</h2>
+                        <p id="edit-position-title" class="mt-1 text-xs text-gray-400"></p>
+                    </div>
+                    <p class="text-xs text-gray-400">Edit any value. The last changed field recalculates the related value so shares, total invested, and average purchase price stay in sync.</p>
+                    <label class="block text-xs text-gray-300">Shares held *
+                        <input name="shares" type="number" min="0.000001" step="any" required class="mt-1 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2">
+                    </label>
+                    <label class="block text-xs text-gray-300">Total invested (EUR) *
+                        <input name="cost_basis_eur" type="number" min="0.01" step="0.01" required class="mt-1 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2">
+                    </label>
+                    <label class="block text-xs text-gray-300">Average purchase price (EUR per share) *
+                        <input name="average_price" type="number" min="0.000001" step="any" required class="mt-1 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2">
+                    </label>
+                    <p id="edit-position-status" role="status" class="text-xs text-gray-400"></p>
+                    <div class="flex justify-end gap-2">
+                        <button type="button" onclick="document.getElementById('edit-position-dialog').close()" class="rounded-lg border border-gray-700 px-3 py-2 text-xs">Cancel</button>
+                        <button type="submit" class="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold">Save changes</button>
+                    </div>
+                </form>
+            </dialog>
+
         <!-- Desktop View -->
         <div id="desktop-view" class="w-full max-w-7xl space-y-6">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1216,7 +1240,13 @@
                 row.className = 'flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-800 px-3 py-2';
                 const label = document.createElement('span');
                 label.className = 'text-xs text-gray-300';
-                label.textContent = `${position.name} · ${position.marketSymbol || positionIsin(position)}`;
+                const costBasis = Number(position.costBasis ?? (
+                    Number(position.price || 0) * Number(position.shares || 0) - Number(position.gain || 0)
+                ));
+                const averagePrice = Number(position.shares) > 0
+                    ? costBasis / Number(position.shares)
+                    : 0;
+                label.textContent = `${position.name} · ${position.marketSymbol || positionIsin(position)} · ${Number(position.shares).toLocaleString('en-GB', { maximumFractionDigits: 6 })} shares · ${currencyFormatter.format(costBasis)} total · ${currencyFormatter.format(averagePrice)} avg`;
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.className = 'position-mutation-button rounded-lg border border-gray-700 px-3 py-1.5 text-xs hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40';
@@ -1228,13 +1258,19 @@
                 });
                 row.append(label, button);
                 if (action === 'archive') {
+                    const editButton = document.createElement('button');
+                    editButton.type = 'button';
+                    editButton.className = button.className;
+                    editButton.textContent = 'Edit';
+                    editButton.disabled = locked;
+                    editButton.addEventListener('click', () => openEditPositionDialog(position));
                     const purchaseButton = document.createElement('button');
                     purchaseButton.type = 'button';
                     purchaseButton.className = button.className;
                     purchaseButton.textContent = 'Record purchase';
                     purchaseButton.disabled = locked;
                     purchaseButton.addEventListener('click', () => openPurchaseDialog(position));
-                    row.append(purchaseButton);
+                    row.append(editButton, purchaseButton);
                 }
                 container.append(row);
             }
@@ -1334,6 +1370,50 @@
             document.getElementById('add-purchase-dialog').showModal();
         }
 
+        let activeEditPosition = null;
+
+        function openEditPositionDialog(position) {
+            if (!positionManagementUnlocked) return;
+            activeEditPosition = position;
+            const shares = Number(position.shares);
+            const costBasis = Number(position.costBasis ?? (
+                Number(position.price || 0) * shares - Number(position.gain || 0)
+            ));
+            const form = document.getElementById('edit-position-form');
+            form.reset();
+            form.elements.shares.value = shares;
+            form.elements.cost_basis_eur.value = costBasis.toFixed(2);
+            form.elements.average_price.value = shares > 0
+                ? (costBasis / shares).toFixed(8)
+                : '';
+            document.getElementById('edit-position-title').textContent =
+                `${position.name} · ${position.marketSymbol || positionIsin(position)}`;
+            document.getElementById('edit-position-status').textContent =
+                'The existing purchase dates will be preserved.';
+            document.getElementById('edit-position-dialog').showModal();
+        }
+
+        function updatePositionEditValues(changedField) {
+            const form = document.getElementById('edit-position-form');
+            const shares = Number(form.elements.shares.value);
+            const costBasis = Number(form.elements.cost_basis_eur.value);
+            const averagePrice = Number(form.elements.average_price.value);
+            if (!Number.isFinite(shares) || shares <= 0) return;
+
+            if (changedField === 'cost_basis_eur' && Number.isFinite(costBasis) && costBasis > 0) {
+                form.elements.average_price.value = (costBasis / shares).toFixed(8);
+            } else if (changedField === 'average_price' && Number.isFinite(averagePrice) && averagePrice > 0) {
+                form.elements.cost_basis_eur.value = (shares * averagePrice).toFixed(2);
+            } else if (changedField === 'shares' && Number.isFinite(averagePrice) && averagePrice > 0) {
+                form.elements.cost_basis_eur.value = (shares * averagePrice).toFixed(2);
+            }
+        }
+
+        ['shares', 'cost_basis_eur', 'average_price'].forEach(field => {
+            document.querySelector(`#edit-position-form [name="${field}"]`)
+                .addEventListener('input', () => updatePositionEditValues(field));
+        });
+
         document.getElementById('add-position-form').addEventListener('submit', async event => {
             event.preventDefault();
             const form = event.currentTarget;
@@ -1401,6 +1481,45 @@
             } catch (error) {
                 console.error('Could not save purchase:', error);
                 status.textContent = `Could not save purchase: ${error.message}`;
+            } finally {
+                submitButton.disabled = false;
+            }
+        });
+
+        document.getElementById('edit-position-form').addEventListener('submit', async event => {
+            event.preventDefault();
+            if (!positionManagementUnlocked || !activeEditPosition) return;
+            const form = event.currentTarget;
+            const submitButton = form.querySelector('[type="submit"]');
+            const status = document.getElementById('edit-position-status');
+            const request = {
+                shares: Number(form.elements.shares.value),
+                cost_basis_eur: Number(form.elements.cost_basis_eur.value)
+            };
+            submitButton.disabled = true;
+            status.textContent = 'Saving position…';
+            try {
+                const identifier = positionIsin(activeEditPosition);
+                const response = await fetch(
+                    `/api/portfolio/positions/${encodeURIComponent(identifier)}`,
+                    {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(request)
+                    }
+                );
+                const payload = await response.json();
+                if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
+                const positionName = payload.position.name;
+                document.getElementById('edit-position-dialog').close();
+                activeEditPosition = null;
+                await loadManagedPositions();
+                await refreshData('portfolio_change');
+                document.getElementById('managed-positions-status').textContent =
+                    `${positionName} was updated.`;
+            } catch (error) {
+                console.error('Could not update portfolio position:', error);
+                status.textContent = `Could not update position: ${error.message}`;
             } finally {
                 submitButton.disabled = false;
             }

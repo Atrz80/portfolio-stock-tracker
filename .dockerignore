@@ -1,0 +1,16 @@
+.git
+.github
+.vscode
+.env
+.venv
+venv
+__pycache__
+*.pyc
+portfolio.json
+storage
+logs
+*.log
+.services.json
+android_app
+tests
+scripts

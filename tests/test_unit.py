@@ -1,5 +1,7 @@
 import asyncio
+import base64
 import json
+import os
 import tempfile
 import time
 import unittest
@@ -24,6 +26,94 @@ from app.market_stream import MarketStreamService
 
 
 class ApplicationUnitTests(unittest.TestCase):
+    def test_dashboard_and_api_require_configured_cloud_credentials(self):
+        authorization = "Basic " + base64.b64encode(
+            b"portfolio:test-password"
+        ).decode("ascii")
+        with patch.dict(
+            os.environ,
+            {
+                "PORTFOLIO_ACCESS_USERNAME": "portfolio",
+                "PORTFOLIO_ACCESS_PASSWORD": "test-password",
+            },
+        ):
+            client = TestClient(main_module.app)
+            self.assertEqual(client.get("/healthz").status_code, 200)
+            self.assertEqual(client.get("/dashboard").status_code, 401)
+            self.assertEqual(client.get("/api/portfolio").status_code, 401)
+            response = client.get(
+                "/dashboard", headers={"Authorization": authorization}
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("portfolio_auth", response.cookies)
+            self.assertEqual(
+                client.get(
+                    "/api/portfolio",
+                    headers={"Authorization": authorization},
+                ).status_code,
+                200,
+            )
+            self.assertEqual(client.get("/api/portfolio").status_code, 200)
+
+    def test_cloud_auth_fails_closed_when_password_is_missing(self):
+        with patch.dict(
+            os.environ,
+            {
+                "PORTFOLIO_AUTH_REQUIRED": "true",
+                "PORTFOLIO_ACCESS_PASSWORD": "",
+            },
+        ):
+            response = TestClient(main_module.app).get("/dashboard")
+        self.assertEqual(response.status_code, 401)
+
+    def test_cloud_storage_fails_closed_when_database_url_is_missing(self):
+        with patch.dict(
+            os.environ,
+            {"PORTFOLIO_DATABASE_REQUIRED": "true", "PORTFOLIO_DATABASE_URL": ""},
+        ):
+            with self.assertRaisesRegex(RuntimeError, "PORTFOLIO_DATABASE_URL is required"):
+                main_module.load_portfolio_data()
+
+    def test_cloud_portfolio_loads_from_database_without_local_fallback(self):
+        expected_positions = [{"name": "Cloud ETF"}]
+        connection = Mock()
+        cursor = Mock()
+        connection.__enter__ = Mock(return_value=connection)
+        connection.__exit__ = Mock(return_value=False)
+        connection.cursor.return_value.__enter__ = Mock(return_value=cursor)
+        connection.cursor.return_value.__exit__ = Mock(return_value=False)
+        cursor.fetchone.return_value = (expected_positions,)
+
+        with patch.dict(
+            os.environ, {"PORTFOLIO_DATABASE_URL": "postgresql://test/db"}
+        ), patch("psycopg.connect", return_value=connection) as connect:
+            positions = main_module.load_portfolio_data()
+
+        self.assertEqual(positions, expected_positions)
+        connect.assert_called_once_with(
+            "postgresql://test/db", connect_timeout=10
+        )
+        self.assertIn("SELECT positions FROM portfolio_state", cursor.execute.call_args.args[0])
+
+    def test_cloud_portfolio_save_versions_previous_database_state(self):
+        connection = Mock()
+        cursor = Mock()
+        connection.__enter__ = Mock(return_value=connection)
+        connection.__exit__ = Mock(return_value=False)
+        connection.cursor.return_value.__enter__ = Mock(return_value=cursor)
+        connection.cursor.return_value.__exit__ = Mock(return_value=False)
+        cursor.fetchone.return_value = ([{"name": "Previous"}],)
+        new_positions = [{"name": "Updated"}]
+
+        with patch.dict(
+            os.environ, {"PORTFOLIO_DATABASE_URL": "postgresql://test/db"}
+        ), patch("psycopg.connect", return_value=connection):
+            main_module._save_portfolio_data(new_positions)
+
+        statements = [call.args[0] for call in cursor.execute.call_args_list]
+        self.assertTrue(any("INSERT INTO portfolio_backups" in sql for sql in statements))
+        self.assertTrue(any("INSERT INTO portfolio_state" in sql for sql in statements))
+
     def test_positions_can_be_added_archived_and_restored_without_deletion(self):
         original_position = {
             "name": "Existing ETF",
@@ -103,6 +193,69 @@ class ApplicationUnitTests(unittest.TestCase):
                 bulk_replacement = client.post("/api/portfolio", json=[])
                 self.assertEqual(bulk_replacement.status_code, 405)
                 self.assertEqual(len(json.loads(portfolio_file.read_text(encoding="utf-8"))), 2)
+
+    def test_position_can_be_edited_and_purchase_dates_are_preserved(self):
+        original_position = {
+            "name": "Editable ETF",
+            "ticker": "IE00TEST12345 • TEST",
+            "marketSymbol": "TEST.L",
+            "shares": 5.0,
+            "costBasis": 65.0,
+            "transactions": [
+                {"date": "2025-01-01", "shares": 2.0, "cost": 20.0},
+                {"date": "2025-06-01", "shares": 3.0, "cost": 45.0},
+            ],
+            "price": 13.0,
+            "value": 65.0,
+            "gain": 0.0,
+            "gainPct": 0.0,
+            "allocation": 100.0,
+            "badge": "bg-indigo-500",
+            "init": "E",
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            portfolio_file = Path(temp_dir) / "portfolio.json"
+            portfolio_file.write_text(json.dumps([original_position]), encoding="utf-8")
+            with patch.object(main_module, "PORTFOLIO_FILE", str(portfolio_file)), patch.object(
+                main_module, "PORTFOLIO_BACKUP_DIR", Path(temp_dir) / "backups"
+            ), patch.object(
+                main_module.market_stream_service,
+                "reload_positions",
+                new_callable=AsyncMock,
+            ):
+                client = TestClient(main_module.app)
+                response = client.put(
+                    "/api/portfolio/positions/IE00TEST12345",
+                    json={"shares": 10, "cost_basis_eur": 100},
+                )
+
+                self.assertEqual(response.status_code, 200)
+                position = response.json()["position"]
+                self.assertEqual(position["shares"], 10)
+                self.assertEqual(position["costBasis"], 100)
+                self.assertEqual(position["price"], 10)
+                self.assertEqual(
+                    [transaction["date"] for transaction in position["transactions"]],
+                    ["2025-01-01", "2025-06-01"],
+                )
+                self.assertEqual(
+                    sum(transaction["shares"] for transaction in position["transactions"]),
+                    10,
+                )
+                self.assertEqual(
+                    sum(transaction["cost"] for transaction in position["transactions"]),
+                    100,
+                )
+
+                archive_response = client.post(
+                    "/api/portfolio/positions/IE00TEST12345/archive"
+                )
+                self.assertEqual(archive_response.status_code, 200)
+                archived_edit = client.put(
+                    "/api/portfolio/positions/IE00TEST12345",
+                    json={"shares": 12, "cost_basis_eur": 120},
+                )
+                self.assertEqual(archived_edit.status_code, 409)
 
     def test_custom_market_symbols_are_used_for_yahoo_but_finnhub_needs_its_symbol(self):
         position = {

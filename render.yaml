@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: portfolio-stock-tracker
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORTFOLIO_ACCESS_USERNAME
+        value: portfolio
+      - key: PORTFOLIO_AUTH_REQUIRED
+        value: "true"
+      - key: PORTFOLIO_ACCESS_PASSWORD
+        sync: false
+      - key: PORTFOLIO_DATABASE_REQUIRED
+        value: "true"
+      - key: PORTFOLIO_DATABASE_URL
+        sync: false

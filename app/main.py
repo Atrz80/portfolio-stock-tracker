@@ -1,6 +1,8 @@
 import os
 import json
 import asyncio
+import base64
+import hmac
 import math
 import re
 import shutil
@@ -13,8 +15,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 from google import generativeai as genai
 from .config import load_configuration
@@ -41,8 +42,28 @@ CATALOG_FILE = PROJECT_ROOT / "storage" / "ticker_catalog.json"
 CATALOG_LOCK = threading.Lock()
 finnhub_data_client = FinnhubMarketDataClient()
 
+
+def _portfolio_database_url() -> str | None:
+    database_url = os.getenv("PORTFOLIO_DATABASE_URL")
+    if not database_url and os.getenv("PORTFOLIO_DATABASE_REQUIRED", "").lower() == "true":
+        raise RuntimeError("PORTFOLIO_DATABASE_URL is required for this deployment.")
+    return database_url
+
+
 def load_portfolio_data():
     with PORTFOLIO_LOCK:
+        database_url = _portfolio_database_url()
+        if database_url:
+            import psycopg
+
+            with psycopg.connect(database_url, connect_timeout=10) as connection:
+                with connection.cursor() as cursor:
+                    _ensure_portfolio_database_schema(cursor)
+                    cursor.execute(
+                        "SELECT positions FROM portfolio_state WHERE id = 1"
+                    )
+                    row = cursor.fetchone()
+            return row[0] if row else []
         if os.path.exists(PORTFOLIO_FILE):
             with open(PORTFOLIO_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
@@ -54,8 +75,36 @@ def load_active_portfolio_data():
 
 
 def _save_portfolio_data(positions: list[dict]) -> None:
-    portfolio_path = Path(PORTFOLIO_FILE)
     with PORTFOLIO_LOCK:
+        database_url = _portfolio_database_url()
+        if database_url:
+            import psycopg
+            from psycopg.types.json import Jsonb
+
+            with psycopg.connect(database_url, connect_timeout=10) as connection:
+                with connection.cursor() as cursor:
+                    _ensure_portfolio_database_schema(cursor)
+                    cursor.execute(
+                        "SELECT positions FROM portfolio_state WHERE id = 1 FOR UPDATE"
+                    )
+                    previous = cursor.fetchone()
+                    if previous:
+                        cursor.execute(
+                            "INSERT INTO portfolio_backups (positions) VALUES (%s)",
+                            (Jsonb(previous[0]),),
+                        )
+                    cursor.execute(
+                        """
+                        INSERT INTO portfolio_state (id, positions, updated_at)
+                        VALUES (1, %s, NOW())
+                        ON CONFLICT (id) DO UPDATE
+                        SET positions = EXCLUDED.positions, updated_at = NOW()
+                        """,
+                        (Jsonb(positions),),
+                    )
+            return
+
+        portfolio_path = Path(PORTFOLIO_FILE)
         if portfolio_path.exists():
             PORTFOLIO_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
             backup_timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
@@ -82,6 +131,50 @@ def _save_portfolio_data(positions: list[dict]) -> None:
                 temporary_path.unlink()
 
 
+def _ensure_portfolio_database_schema(cursor) -> None:
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS portfolio_state (
+            id SMALLINT PRIMARY KEY CHECK (id = 1),
+            positions JSONB NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+        """
+    )
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS portfolio_backups (
+            id BIGSERIAL PRIMARY KEY,
+            positions JSONB NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+        """
+    )
+
+
+def _valid_basic_credentials(
+    authorization: str | None, session_cookie: str | None = None
+) -> bool:
+    expected_password = os.getenv("PORTFOLIO_ACCESS_PASSWORD")
+    if not expected_password:
+        return os.getenv("PORTFOLIO_AUTH_REQUIRED", "").lower() != "true"
+    expected_username = os.getenv("PORTFOLIO_ACCESS_USERNAME", "portfolio")
+    if not authorization or not authorization.startswith("Basic "):
+        authorization = f"Basic {session_cookie}" if session_cookie else None
+    if not authorization:
+        return False
+    try:
+        decoded = base64.b64decode(authorization[6:], validate=True).decode("utf-8")
+    except (ValueError, UnicodeDecodeError):
+        return False
+    username, separator, password = decoded.partition(":")
+    return bool(separator) and hmac.compare_digest(
+        username.encode("utf-8"), expected_username.encode("utf-8")
+    ) and hmac.compare_digest(
+        password.encode("utf-8"), expected_password.encode("utf-8")
+    )
+
+
 market_stream_service = MarketStreamService(load_active_portfolio_data)
 
 
@@ -99,13 +192,39 @@ app = FastAPI(
     version="3.0.0",
     lifespan=lifespan,
 )
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
+@app.middleware("http")
+async def require_portfolio_credentials(request, call_next):
+    if request.url.path not in {"/", "/healthz"} and not _valid_basic_credentials(
+        request.headers.get("authorization"),
+        request.cookies.get("portfolio_auth"),
+    ):
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Authentication required."},
+            headers={"WWW-Authenticate": 'Basic realm="Portfolio Tracker"'},
+        )
+    response = await call_next(request)
+    if request.url.path == "/dashboard" and os.getenv("PORTFOLIO_ACCESS_PASSWORD"):
+        encoded_credentials = base64.b64encode(
+            (
+                f"{os.getenv('PORTFOLIO_ACCESS_USERNAME', 'portfolio')}:"
+                f"{os.getenv('PORTFOLIO_ACCESS_PASSWORD')}"
+            ).encode("utf-8")
+        ).decode("ascii")
+        response.set_cookie(
+            "portfolio_auth",
+            encoded_credentials,
+            httponly=True,
+            secure=(
+                request.url.scheme == "https"
+                or request.headers.get("x-forwarded-proto") == "https"
+            ),
+            samesite="strict",
+            max_age=60 * 60 * 24 * 30,
+            path="/",
+        )
+    return response
 class StockPosition(BaseModel):
     name: str
     ticker: str
@@ -137,6 +256,11 @@ class NewPositionPurchase(BaseModel):
     purchase_date: date
 
 
+class UpdatePortfolioPosition(BaseModel):
+    shares: float = Field(gt=0)
+    cost_basis_eur: float = Field(gt=0)
+
+
 @app.get("/")
 def read_root():
     return {
@@ -147,6 +271,13 @@ def read_root():
         "dashboard": "/dashboard",
         "stream": "/ws/market",
     }
+
+
+@app.get("/healthz")
+def health_check():
+    if os.getenv("PORTFOLIO_DATABASE_REQUIRED", "").lower() == "true":
+        load_portfolio_data()
+    return {"status": "ok"}
 
 
 @app.get("/dashboard", include_in_schema=False)
@@ -255,6 +386,66 @@ async def add_position_purchase(position_id: str, request: NewPositionPurchase):
         _save_portfolio_data(positions)
     await market_stream_service.reload_positions()
     return {"status": "purchase_added", "position": position, "purchase": purchase}
+
+
+@app.put("/api/portfolio/positions/{position_id}")
+async def update_portfolio_position(
+    position_id: str, request: UpdatePortfolioPosition
+):
+    normalized_id = position_id.strip().upper()
+    if not math.isfinite(request.shares) or not math.isfinite(request.cost_basis_eur):
+        raise HTTPException(
+            status_code=400,
+            detail="Shares and total invested amount must be finite numbers.",
+        )
+    cost_basis = round(request.cost_basis_eur, 2)
+    if cost_basis < 0.01:
+        raise HTTPException(
+            status_code=400, detail="Total invested amount must be at least EUR 0.01."
+        )
+
+    with PORTFOLIO_LOCK:
+        positions = load_portfolio_data()
+        position = next(
+            (item for item in positions if _position_isin(item).upper() == normalized_id),
+            None,
+        )
+        if position is None:
+            raise HTTPException(status_code=404, detail="Position not found.")
+        if position.get("archived"):
+            raise HTTPException(status_code=409, detail="Restore the position before editing it.")
+
+        transactions = position.get("transactions") or []
+        recorded_shares = sum(float(transaction["shares"]) for transaction in transactions)
+        if transactions and recorded_shares > 0:
+            average_cost = cost_basis / request.shares
+            updated_transactions = []
+            allocated_cost = 0.0
+            allocated_shares = 0.0
+            for index, transaction in enumerate(transactions):
+                updated_transaction = dict(transaction)
+                updated_transaction["shares"] = (
+                    request.shares - allocated_shares
+                    if index == len(transactions) - 1
+                    else request.shares * float(transaction["shares"]) / recorded_shares
+                )
+                allocated_shares += updated_transaction["shares"]
+                if index == len(transactions) - 1:
+                    updated_transaction["cost"] = round(cost_basis - allocated_cost, 2)
+                else:
+                    updated_transaction["cost"] = round(
+                        updated_transaction["shares"] * average_cost, 2
+                    )
+                    allocated_cost += updated_transaction["cost"]
+                updated_transactions.append(updated_transaction)
+            position["transactions"] = updated_transactions
+
+        position["shares"] = request.shares
+        position["costBasis"] = cost_basis
+        position["price"] = round(cost_basis / request.shares, 4)
+        _save_portfolio_data(positions)
+    await market_stream_service.reload_positions()
+    return {"status": "position_updated", "position": position}
 
 
 @app.post("/api/portfolio/positions/{position_id}/archive")
@@ -911,6 +1102,12 @@ def get_market_status():
 
 @app.websocket("/ws/market")
 async def market_websocket(websocket: WebSocket):
+    if not _valid_basic_credentials(
+        websocket.headers.get("authorization"),
+        websocket.cookies.get("portfolio_auth"),
+    ):
+        await websocket.close(code=1008, reason="Authentication required.")
+        return
     await websocket.accept()
     queue = market_stream_service.subscribe()
     try:

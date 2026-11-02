@@ -22,6 +22,11 @@ The provider selection and backend URL are saved on-device. Price refreshes
 are manual; Yahoo push updates are currently available in the web dashboard.
 Portfolio and asset history use `GET /api/portfolio/history`.
 
+For cloud hosting, enter the HTTPS service URL in **Settings**, then save the
+server username (`portfolio`) and password configured for the hosted service.
+The free hosting option can sleep when idle, so the first refresh may take
+longer. Keep the password private.
+
 The US ticker catalog can be loaded from `GET /api/catalog?exchange=US` or
 refreshed with `POST /api/catalog/refresh?exchange=US`. The catalog is stored
 on-device and searched locally.

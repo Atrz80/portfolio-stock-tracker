@@ -47,6 +47,8 @@ import kotlin.math.abs
 private const val PREFERENCES_NAME = "portfolio_preferences"
 private const val PROVIDER_KEY = "market_data_provider"
 private const val SERVER_URL_KEY = "market_data_server_url"
+private const val SERVER_USERNAME_KEY = "market_data_server_username"
+private const val SERVER_PASSWORD_KEY = "market_data_server_password"
 private const val CATALOG_EXCHANGE = "US"
 private const val CATALOG_KEY = "ticker_catalog_${CATALOG_EXCHANGE}_v2"
 private val catalogGson = Gson()
@@ -104,7 +106,15 @@ fun DashboardScreen() {
                 ?: PortfolioApiService.DEFAULT_BASE_URL
         )
     }
-    var apiService by remember(serverUrl) { mutableStateOf(PortfolioApiService.create(serverUrl)) }
+    var serverUsername by remember {
+        mutableStateOf(preferences.getString(SERVER_USERNAME_KEY, "portfolio") ?: "portfolio")
+    }
+    var serverPassword by remember {
+        mutableStateOf(preferences.getString(SERVER_PASSWORD_KEY, "") ?: "")
+    }
+    var apiService by remember(serverUrl, serverUsername, serverPassword) {
+        mutableStateOf(PortfolioApiService.create(serverUrl, serverUsername, serverPassword))
+    }
     var provider by remember {
         mutableStateOf(preferences.getString(PROVIDER_KEY, "yahoo") ?: "yahoo")
     }
@@ -232,6 +242,8 @@ fun DashboardScreen() {
         SettingsDialog(
             context = context,
             serverUrl = serverUrl,
+            serverUsername = serverUsername,
+            serverPassword = serverPassword,
             provider = provider,
             catalog = catalog,
             catalogError = catalogError,
@@ -241,6 +253,17 @@ fun DashboardScreen() {
                 val normalized = normalizeServerUrl(input)
                 serverUrl = normalized
                 preferences.edit().putString(SERVER_URL_KEY, normalized).apply()
+            },
+            onSaveCredentials = { username, password ->
+                require((username.isBlank() && password.isEmpty()) ||
+                    (username.isNotBlank() && password.isNotEmpty())
+                ) { "Enter both a username and password, or leave both blank for a local server." }
+                serverUsername = username.trim()
+                serverPassword = password
+                preferences.edit()
+                    .putString(SERVER_USERNAME_KEY, serverUsername)
+                    .putString(SERVER_PASSWORD_KEY, serverPassword)
+                    .apply()
             },
             onProviderSelected = { selected ->
                 provider = selected
@@ -712,21 +735,27 @@ private fun AssetHistorySheet(
 private fun SettingsDialog(
     context: Context,
     serverUrl: String,
+    serverUsername: String,
+    serverPassword: String,
     provider: String,
     catalog: TickerCatalog?,
     catalogError: String?,
     isLoadingCatalog: Boolean,
     onDismiss: () -> Unit,
     onSaveServerUrl: (String) -> Unit,
+    onSaveCredentials: (String, String) -> Unit,
     onProviderSelected: (String) -> Unit,
     onLoadCatalog: () -> Unit,
     onRefreshCatalog: () -> Unit,
     onClearCatalog: () -> Unit
 ) {
     var serverInput by remember(serverUrl) { mutableStateOf(serverUrl) }
+    var usernameInput by remember(serverUsername) { mutableStateOf(serverUsername) }
+    var passwordInput by remember(serverPassword) { mutableStateOf(serverPassword) }
     var search by remember { mutableStateOf("") }
     var dashboardError by remember { mutableStateOf<String?>(null) }
     var serverAddressStatus by remember { mutableStateOf<String?>(null) }
+    var credentialsStatus by remember { mutableStateOf<String?>(null) }
     val matchingEntries = catalog?.symbols.orEmpty().filter {
         search.isBlank() || it.matches(search)
     }.take(100)
@@ -761,8 +790,23 @@ private fun SettingsDialog(
                     onValueChange = { serverInput = it },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Server URL") },
-                    supportingText = { Text("On your phone, use the PC's Wi-Fi address, e.g. http://192.168.1.20:8000/") },
+                    supportingText = { Text("Use the hosted HTTPS URL, or a local server address while that PC is running.") },
                     singleLine = true
+                )
+                OutlinedTextField(
+                    value = usernameInput,
+                    onValueChange = { usernameInput = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Server username") },
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = passwordInput,
+                    onValueChange = { passwordInput = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Server password") },
+                    singleLine = true,
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation()
                 )
                 OutlinedButton(
                     onClick = {
@@ -781,6 +825,27 @@ private fun SettingsDialog(
                     Text(
                         it,
                         color = if (it.startsWith("Server address saved")) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                OutlinedButton(
+                    onClick = {
+                        try {
+                            onSaveCredentials(usernameInput, passwordInput)
+                            credentialsStatus = "Credentials saved. Reconnecting…"
+                        } catch (error: Exception) {
+                            credentialsStatus = error.message ?: "Invalid server credentials."
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Save server credentials")
+                }
+                credentialsStatus?.let {
+                    Text(
+                        it,
+                        color = if (it.startsWith("Credentials saved")) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -817,7 +882,7 @@ private fun SettingsDialog(
                 }
                 Divider()
                 Text(
-                    "Connection note: on a real phone, keep the PC dashboard server running and connect both devices to the same trusted Wi-Fi. The local API has no login; do not expose it on public Wi-Fi.",
+                    "A hosted server can be used while your PC is off. Local server addresses work only while that PC is running and reachable on the same trusted Wi-Fi.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

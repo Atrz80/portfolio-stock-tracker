@@ -1,6 +1,7 @@
 crewai
 crewai-tools
 fastapi
+psycopg[binary]>=3.2,<4
 uvicorn[standard]
 openai
 python-dotenv
