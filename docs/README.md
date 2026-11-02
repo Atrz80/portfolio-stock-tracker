@@ -15,3 +15,12 @@ The dashboard includes selectable portfolio history and per-asset history
 charts with pointer/touch crosshairs. Historical holdings are reconstructed
 from purchase transactions in the local `portfolio.json`; keep personal
 holdings and transaction records out of public commits.
+
+The dashboard's **Manage portfolio positions** panel can add, archive, and
+restore holdings. Adding a position requires its name, Yahoo Finance symbol,
+share count, total invested amount in EUR, and purchase date. ISIN, display
+ticker, and Finnhub symbol are optional. Archiving is reversible; position data
+is retained and every change creates a timestamped backup under
+`storage/portfolio-backups/`. The bulk replacement endpoint is disabled to
+prevent accidental portfolio loss. Unlocking position management also enables
+recording additional purchases by shares, EUR cost, and trade date.

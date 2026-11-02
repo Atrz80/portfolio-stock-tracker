@@ -167,7 +167,8 @@ class MarketStreamService:
     @property
     def stream_symbols(self) -> list[str]:
         symbols = {
-            YAHOO_TICKER_MAP.get(self._position_isin(position), "")
+            position.get("marketSymbol")
+            or YAHOO_TICKER_MAP.get(self._position_isin(position), "")
             for position in self.portfolio_loader()
         }
         currencies = {
@@ -188,7 +189,7 @@ class MarketStreamService:
 
     def _position_symbol(self, position: dict[str, Any]) -> str:
         isin = self._position_isin(position)
-        symbol = YAHOO_TICKER_MAP.get(isin)
+        symbol = position.get("marketSymbol") or YAHOO_TICKER_MAP.get(isin)
         if not symbol:
             raise MarketDataError(f"No market ticker is configured for {isin}")
         return symbol
@@ -211,6 +212,24 @@ class MarketStreamService:
             await self._client.stop()
         self._started = False
         await self._publish({"type": "stream_status", "health": self.health.public_dict()})
+
+    async def reload_positions(self) -> None:
+        if not self._started:
+            return
+        if self._client:
+            await self._client.stop()
+        self._positions = {
+            self._position_symbol(position): position
+            for position in self.portfolio_loader()
+        }
+        await self._load_snapshot()
+        self._client = YahooStreamClient(
+            symbols=self.stream_symbols,
+            on_quote=self._on_quote,
+            health=self.health,
+        )
+        self._client.start()
+        await self._publish(self.snapshot())
 
     async def _load_snapshot(self) -> None:
         for symbol in YAHOO_FX_SYMBOLS.values():

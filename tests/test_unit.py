@@ -1,10 +1,11 @@
 import asyncio
+import json
 import tempfile
 import time
 import unittest
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from fastapi.testclient import TestClient
 
@@ -23,6 +24,112 @@ from app.market_stream import MarketStreamService
 
 
 class ApplicationUnitTests(unittest.TestCase):
+    def test_positions_can_be_added_archived_and_restored_without_deletion(self):
+        original_position = {
+            "name": "Existing ETF",
+            "ticker": "IE00BK5BQT80 • A2PKXG",
+            "shares": 2.0,
+            "costBasis": 18.0,
+            "transactions": [{"date": "2025-01-01", "shares": 2.0}],
+            "price": 9.0,
+            "value": 18.0,
+            "gain": 0.0,
+            "gainPct": 0.0,
+            "allocation": 100.0,
+            "badge": "bg-indigo-500",
+            "init": "E",
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            portfolio_file = Path(temp_dir) / "portfolio.json"
+            backup_dir = Path(temp_dir) / "backups"
+            portfolio_file.write_text(json.dumps([original_position]), encoding="utf-8")
+            with patch.object(main_module, "PORTFOLIO_FILE", str(portfolio_file)), patch.object(
+                main_module, "PORTFOLIO_BACKUP_DIR", backup_dir
+            ), patch.object(
+                main_module.market_stream_service,
+                "reload_positions",
+                new_callable=AsyncMock,
+            ):
+                client = TestClient(main_module.app)
+                response = client.post(
+                    "/api/portfolio/positions",
+                    json={
+                        "name": "New ETF",
+                        "market_symbol": "NEW.L",
+                        "shares": 4,
+                        "cost_basis_eur": 40,
+                        "purchase_date": "2026-01-15",
+                    },
+                )
+                self.assertEqual(response.status_code, 201)
+                added_position = response.json()
+                self.assertEqual(added_position["marketSymbol"], "NEW.L")
+                self.assertEqual(added_position["ticker"], "CUSTOM:NEW.L • NEW.L")
+                self.assertEqual(added_position["transactions"][0]["cost"], 40)
+
+                purchase_response = client.post(
+                    "/api/portfolio/positions/CUSTOM:NEW.L/purchases",
+                    json={
+                        "shares": 1,
+                        "cost_basis_eur": 10,
+                        "purchase_date": date.today().isoformat(),
+                    },
+                )
+                self.assertEqual(purchase_response.status_code, 201)
+                purchased_position = purchase_response.json()["position"]
+                self.assertEqual(purchased_position["shares"], 5)
+                self.assertEqual(purchased_position["costBasis"], 50)
+                self.assertEqual(purchased_position["transactions"][-1]["cost"], 10)
+
+                archive_response = client.post(
+                    "/api/portfolio/positions/IE00BK5BQT80/archive"
+                )
+                self.assertEqual(archive_response.status_code, 200)
+                archived_positions = client.get("/api/portfolio/positions").json()
+                self.assertEqual(len(archived_positions["active"]), 1)
+                self.assertEqual(len(archived_positions["archived"]), 1)
+                self.assertEqual(
+                    archived_positions["archived"][0]["transactions"],
+                    original_position["transactions"],
+                )
+
+                restore_response = client.post(
+                    "/api/portfolio/positions/IE00BK5BQT80/restore"
+                )
+                self.assertEqual(restore_response.status_code, 200)
+                self.assertEqual(len(client.get("/api/portfolio/positions").json()["active"]), 2)
+                self.assertEqual(len(list(backup_dir.glob("portfolio-*.json"))), 4)
+
+                bulk_replacement = client.post("/api/portfolio", json=[])
+                self.assertEqual(bulk_replacement.status_code, 405)
+                self.assertEqual(len(json.loads(portfolio_file.read_text(encoding="utf-8"))), 2)
+
+    def test_custom_market_symbols_are_used_for_yahoo_but_finnhub_needs_its_symbol(self):
+        position = {
+            "ticker": "CUSTOM:NEW.L • NEW",
+            "marketSymbol": "NEW.L",
+        }
+        self.assertEqual(main_module._position_symbol(position), "NEW.L")
+        with self.assertRaises(MarketDataError):
+            main_module._position_symbol(position, "finnhub")
+
+    def test_market_stream_reloads_custom_positions_without_restarting_app(self):
+        positions = [{"ticker": "CUSTOM:NEW.L • NEW", "marketSymbol": "NEW.L"}]
+        service = MarketStreamService(lambda: positions)
+        service._started = True
+        previous_client = Mock()
+        previous_client.stop = AsyncMock()
+        service._client = previous_client
+        with patch("app.market_stream.YahooStreamClient") as stream_client, patch.object(
+            service, "_load_snapshot", new_callable=AsyncMock
+        ), patch.object(service, "_publish", new_callable=AsyncMock):
+            asyncio.run(service.reload_positions())
+
+        previous_client.stop.assert_awaited_once()
+        stream_client.assert_called_once()
+        self.assertEqual(service._positions, {"NEW.L": positions[0]})
+        stream_client.return_value.start.assert_called_once()
+
     def test_memory_round_trip(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             memory_file = Path(temp_dir) / "memory.jsonl"
@@ -176,13 +283,17 @@ class ApplicationUnitTests(unittest.TestCase):
         position = {
             "name": "Test ETF",
             "ticker": "IE00BK5BQT80 • TEST",
-            "shares": 2,
-            "costBasis": 18.0,
+            "shares": 3,
+            "costBasis": 27.0,
             "transactions": [
                 {
-                    "date": datetime.fromtimestamp(now - 30, timezone.utc).date().isoformat(),
+                    "date": datetime.fromtimestamp(now - 30 * 86400, timezone.utc).date().isoformat(),
                     "shares": 2,
-                }
+                },
+                {
+                    "date": datetime.fromtimestamp(now - 10, timezone.utc).date().isoformat(),
+                    "shares": 1,
+                },
             ],
         }
         history = [
@@ -204,18 +315,22 @@ class ApplicationUnitTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         result = response.json()
         self.assertEqual(result["asset"]["market_symbol"], "VWRA.L")
-        self.assertEqual(result["asset"]["shares"], 2.0)
-        self.assertEqual(result["asset"]["cost_basis"], 18.0)
-        self.assertEqual(result["asset"]["unrealized_gain"], 7.0)
-        self.assertEqual(result["asset"]["last_value"], 25.0)
+        self.assertEqual(result["asset"]["shares"], 3.0)
+        self.assertEqual(result["asset"]["cost_basis"], 27.0)
+        self.assertEqual(result["asset"]["unrealized_gain"], 10.5)
+        self.assertEqual(result["asset"]["last_value"], 37.5)
         self.assertEqual(result["summary"]["end_value"], 12.5)
         self.assertEqual(result["summary"]["change"], 4.5)
         self.assertEqual(result["points"][0]["value"], 8.0)
         self.assertEqual(result["asset"]["period_start_value"], 0.0)
-        self.assertEqual(result["asset"]["period_end_value"], 25.0)
-        self.assertEqual(result["investment_summary"]["estimated_contributions"], 18.0)
-        self.assertEqual(result["investment_summary"]["gain"], 7.0)
-        self.assertEqual(result["asset"]["period_gain"], 7.0)
+        self.assertEqual(result["asset"]["period_end_value"], 37.5)
+        self.assertEqual(result["investment_summary"]["estimated_contributions"], 27.0)
+        self.assertEqual(result["investment_summary"]["gain"], 10.5)
+        self.assertEqual(result["asset"]["period_gain"], 10.5)
+        self.assertEqual(result["investment_points"][0]["shares"], 2.0)
+        self.assertEqual(result["investment_points"][0]["value"], 2.0)
+        self.assertEqual(result["investment_points"][-1]["shares"], 3.0)
+        self.assertEqual(result["investment_points"][-1]["value"], 10.5)
         self.assertIn("per-share prices", result["note"])
 
     def test_asset_history_endpoint_rejects_unknown_isin(self):
@@ -555,6 +670,10 @@ class ApplicationUnitTests(unittest.TestCase):
         self.assertIn("function highlightPriceMovement(stock)", html)
         self.assertIn("pointermove", html)
         self.assertIn("function openAssetHistory(isin)", html)
+        self.assertIn("Gain / loss %", html)
+        self.assertIn("fa-layer-group", html)
+        self.assertIn("data-field=\"gain-pct\"", html)
+        self.assertIn("function desktopRow(stock)", html)
         self.assertIn("portfolio.tickerCatalog.finnhub.US.v1", html)
         self.assertIn("fetch('/api/catalog/refresh?exchange=US'", html)
         self.assertNotIn("fetch('/api/catalog')", html)

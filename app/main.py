@@ -1,9 +1,12 @@
 import os
 import json
 import asyncio
+import math
+import re
+import shutil
+import tempfile
 from bisect import bisect_right
 from concurrent.futures import ThreadPoolExecutor
-import re
 import threading
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
@@ -12,7 +15,7 @@ from typing import List, Optional
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from google import generativeai as genai
 from .config import load_configuration
 from .market_data import (
@@ -32,18 +35,54 @@ if api_key:
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PORTFOLIO_FILE = str(PROJECT_ROOT / "portfolio.json")
+PORTFOLIO_BACKUP_DIR = PROJECT_ROOT / "storage" / "portfolio-backups"
+PORTFOLIO_LOCK = threading.RLock()
 CATALOG_FILE = PROJECT_ROOT / "storage" / "ticker_catalog.json"
 CATALOG_LOCK = threading.Lock()
 finnhub_data_client = FinnhubMarketDataClient()
 
 def load_portfolio_data():
-    if os.path.exists(PORTFOLIO_FILE):
-        with open(PORTFOLIO_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return []
+    with PORTFOLIO_LOCK:
+        if os.path.exists(PORTFOLIO_FILE):
+            with open(PORTFOLIO_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return []
 
 
-market_stream_service = MarketStreamService(load_portfolio_data)
+def load_active_portfolio_data():
+    return [position for position in load_portfolio_data() if not position.get("archived")]
+
+
+def _save_portfolio_data(positions: list[dict]) -> None:
+    portfolio_path = Path(PORTFOLIO_FILE)
+    with PORTFOLIO_LOCK:
+        if portfolio_path.exists():
+            PORTFOLIO_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+            backup_timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+            shutil.copy2(
+                portfolio_path,
+                PORTFOLIO_BACKUP_DIR / f"portfolio-{backup_timestamp}.json",
+            )
+        temporary_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=portfolio_path.parent,
+                prefix=".portfolio-",
+                suffix=".tmp",
+                delete=False,
+            ) as temporary_file:
+                temporary_path = Path(temporary_file.name)
+                json.dump(positions, temporary_file, ensure_ascii=False, indent=4)
+                temporary_file.write("\n")
+            os.replace(temporary_path, portfolio_path)
+        finally:
+            if temporary_path and temporary_path.exists():
+                temporary_path.unlink()
+
+
+market_stream_service = MarketStreamService(load_active_portfolio_data)
 
 
 @asynccontextmanager
@@ -80,6 +119,24 @@ class StockPosition(BaseModel):
     badge: str
     init: str
 
+
+class NewPortfolioPosition(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    market_symbol: str = Field(min_length=1, max_length=32)
+    shares: float = Field(gt=0)
+    cost_basis_eur: float = Field(gt=0)
+    purchase_date: date
+    isin: Optional[str] = Field(default=None, max_length=24)
+    display_ticker: Optional[str] = Field(default=None, max_length=32)
+    finnhub_symbol: Optional[str] = Field(default=None, max_length=32)
+
+
+class NewPositionPurchase(BaseModel):
+    shares: float = Field(gt=0)
+    cost_basis_eur: float = Field(ge=0.01)
+    purchase_date: date
+
+
 @app.get("/")
 def read_root():
     return {
@@ -98,13 +155,153 @@ def dashboard():
 
 @app.get("/api/portfolio", response_model=List[StockPosition])
 def get_portfolio():
-    return load_portfolio_data()
+    return load_active_portfolio_data()
+
+
+@app.get("/api/portfolio/positions")
+def get_managed_portfolio_positions():
+    positions = load_portfolio_data()
+    return {
+        "active": [position for position in positions if not position.get("archived")],
+        "archived": [position for position in positions if position.get("archived")],
+    }
+
+
+@app.post("/api/portfolio/positions", status_code=201)
+async def add_portfolio_position(request: NewPortfolioPosition):
+    name = request.name.strip()
+    symbol = request.market_symbol.strip().upper()
+    isin = request.isin.strip().upper() if request.isin else None
+    display_ticker = (request.display_ticker or symbol).strip()
+    finnhub_symbol = request.finnhub_symbol.strip().upper() if request.finnhub_symbol else None
+    if not name or not re.fullmatch(r"[A-Z0-9][A-Z0-9.^=_-]{0,31}", symbol):
+        raise HTTPException(status_code=400, detail="Enter a valid name and Yahoo Finance symbol.")
+    if isin and not re.fullmatch(r"[A-Z0-9-]{4,24}", isin):
+        raise HTTPException(status_code=400, detail="The optional ISIN or identifier is invalid.")
+    if finnhub_symbol and not re.fullmatch(r"[A-Z0-9][A-Z0-9.:^=_-]{0,31}", finnhub_symbol):
+        raise HTTPException(status_code=400, detail="The optional Finnhub symbol is invalid.")
+    if not math.isfinite(request.shares) or not math.isfinite(request.cost_basis_eur):
+        raise HTTPException(status_code=400, detail="Shares and cost basis must be finite numbers.")
+    if request.purchase_date > datetime.now(timezone.utc).date():
+        raise HTTPException(status_code=400, detail="Purchase date cannot be in the future.")
+
+    identifier = isin or f"CUSTOM:{symbol}"
+    position = {
+        "name": name,
+        "ticker": f"{identifier} • {display_ticker}",
+        "marketSymbol": symbol,
+        "shares": request.shares,
+        "costBasis": round(request.cost_basis_eur, 2),
+        "transactions": [
+            {
+                "date": request.purchase_date.isoformat(),
+                "shares": request.shares,
+                "cost": round(request.cost_basis_eur, 2),
+            }
+        ],
+        "price": round(request.cost_basis_eur / request.shares, 4),
+        "value": round(request.cost_basis_eur, 2),
+        "gain": 0.0,
+        "gainPct": 0.0,
+        "allocation": 0.0,
+        "badge": "bg-indigo-500",
+        "init": name[:2],
+    }
+    if finnhub_symbol:
+        position["finnhubSymbol"] = finnhub_symbol
+
+    with PORTFOLIO_LOCK:
+        positions = load_portfolio_data()
+        if any(_position_isin(item).upper() == identifier for item in positions):
+            raise HTTPException(
+                status_code=409,
+                detail="This position already exists, including in the archive. Restore it instead.",
+            )
+        positions.append(position)
+        _save_portfolio_data(positions)
+    await market_stream_service.reload_positions()
+    return position
+
+
+@app.post("/api/portfolio/positions/{position_id}/purchases", status_code=201)
+async def add_position_purchase(position_id: str, request: NewPositionPurchase):
+    normalized_id = position_id.strip().upper()
+    if not math.isfinite(request.shares) or not math.isfinite(request.cost_basis_eur):
+        raise HTTPException(status_code=400, detail="Shares and purchase amount must be finite numbers.")
+    if request.purchase_date > datetime.now(timezone.utc).date():
+        raise HTTPException(status_code=400, detail="Purchase date cannot be in the future.")
+
+    with PORTFOLIO_LOCK:
+        positions = load_portfolio_data()
+        position = next(
+            (item for item in positions if _position_isin(item).upper() == normalized_id),
+            None,
+        )
+        if position is None:
+            raise HTTPException(status_code=404, detail="Position not found.")
+        if position.get("archived"):
+            raise HTTPException(status_code=409, detail="Restore the position before adding a purchase.")
+        purchase = {
+            "date": request.purchase_date.isoformat(),
+            "shares": request.shares,
+            "cost": round(request.cost_basis_eur, 2),
+        }
+        position.setdefault("transactions", []).append(purchase)
+        position["shares"] = float(position["shares"]) + request.shares
+        position["costBasis"] = round(
+            position_cost_basis(position) + request.cost_basis_eur, 2
+        )
+        position["price"] = round(position["costBasis"] / position["shares"], 4)
+        _save_portfolio_data(positions)
+    await market_stream_service.reload_positions()
+    return {"status": "purchase_added", "position": position, "purchase": purchase}
+
+
+@app.post("/api/portfolio/positions/{position_id}/archive")
+async def archive_portfolio_position(position_id: str):
+    normalized_id = position_id.strip().upper()
+    with PORTFOLIO_LOCK:
+        positions = load_portfolio_data()
+        position = next(
+            (item for item in positions if _position_isin(item).upper() == normalized_id),
+            None,
+        )
+        if position is None:
+            raise HTTPException(status_code=404, detail="Position not found.")
+        if position.get("archived"):
+            raise HTTPException(status_code=409, detail="Position is already archived.")
+        position["archived"] = True
+        position["archivedAt"] = datetime.now(timezone.utc).isoformat()
+        _save_portfolio_data(positions)
+    await market_stream_service.reload_positions()
+    return {"status": "archived", "position": position}
+
+
+@app.post("/api/portfolio/positions/{position_id}/restore")
+async def restore_portfolio_position(position_id: str):
+    normalized_id = position_id.strip().upper()
+    with PORTFOLIO_LOCK:
+        positions = load_portfolio_data()
+        position = next(
+            (item for item in positions if _position_isin(item).upper() == normalized_id),
+            None,
+        )
+        if position is None:
+            raise HTTPException(status_code=404, detail="Position not found.")
+        if not position.get("archived"):
+            raise HTTPException(status_code=409, detail="Position is already active.")
+        position.pop("archived", None)
+        position.pop("archivedAt", None)
+        _save_portfolio_data(positions)
+    await market_stream_service.reload_positions()
+    return {"status": "restored", "position": position}
 
 @app.post("/api/portfolio")
 def save_portfolio(positions: List[StockPosition]):
-    with open(PORTFOLIO_FILE, "w", encoding="utf-8") as f:
-        json.dump([p.dict() for p in positions], f, ensure_ascii=False, indent=4)
-    return {"status": "success"}
+    raise HTTPException(
+        status_code=405,
+        detail="Bulk portfolio replacement is disabled to prevent accidental data loss. Manage positions individually.",
+    )
 
 
 
@@ -114,11 +311,14 @@ def _position_isin(item: dict) -> str:
 
 def _position_symbol(item: dict, provider: str = "yahoo") -> str:
     isin = _position_isin(item)
-    ticker_map = FINNHUB_TICKER_MAP if provider.lower() == "finnhub" else YAHOO_TICKER_MAP
-    symbol = ticker_map.get(isin) or YAHOO_TICKER_MAP.get(isin)
+    if provider.lower() == "finnhub":
+        symbol = item.get("finnhubSymbol") or FINNHUB_TICKER_MAP.get(isin)
+    else:
+        symbol = item.get("marketSymbol") or YAHOO_TICKER_MAP.get(isin)
     if not symbol:
-        raise MarketDataError(f"No market ticker is configured for {isin}")
-    return symbol
+        provider_name = "Finnhub" if provider.lower() == "finnhub" else "Yahoo Finance"
+        raise MarketDataError(f"No {provider_name} symbol is configured for {isin}")
+    return str(symbol).strip().upper()
 
 
 def _calculate_realtime_position(item: dict, provider: str = "yahoo") -> dict:
@@ -159,7 +359,7 @@ def get_realtime_portfolio(provider: str = "yahoo"):
     provider = provider.strip().lower()
     if provider not in {"yahoo", "finnhub"}:
         raise HTTPException(status_code=400, detail="Invalid provider: use yahoo or finnhub")
-    data = load_portfolio_data()
+    data = load_active_portfolio_data()
     try:
         updated_items = [_calculate_realtime_position(item, provider) for item in data]
     except MarketDataError as exc:
@@ -256,7 +456,7 @@ def _estimated_purchase_contributions(
             continue
         average_cost = position_cost_basis(position) / total_shares
         contributions += sum(
-            float(transaction["shares"]) * average_cost
+            float(transaction.get("cost", float(transaction["shares"]) * average_cost))
             for transaction in transactions
             if start_date < date.fromisoformat(transaction["date"]) <= end_date
         )
@@ -279,7 +479,7 @@ def get_portfolio_history(period: str = "1m", isin: str | None = None):
             detail="Unsupported period. Use 1d, 1w, 1m, 1y, ytd, or max.",
         )
 
-    portfolio = load_portfolio_data()
+    portfolio = load_active_portfolio_data()
     if not portfolio:
         raise HTTPException(status_code=404, detail="The portfolio has no positions.")
 
@@ -478,6 +678,77 @@ def get_portfolio_history(period: str = "1m", isin: str | None = None):
     if asset:
         current_date = now.date()
         asset_transactions = transactions_by_symbol[asset["market_symbol"]]
+        transaction_history = sorted(
+            (
+                int(
+                    datetime.combine(
+                        date.fromisoformat(transaction["date"]),
+                        datetime.min.time(),
+                        timezone.utc,
+                    ).timestamp()
+                ),
+                float(transaction["shares"]),
+            )
+            for transaction in asset_transactions
+        )
+        total_transaction_shares = sum(shares for _, shares in transaction_history)
+        average_cost_per_share = (
+            asset["cost_basis"] / total_transaction_shares
+            if total_transaction_shares > 0
+            else 0.0
+        )
+        transaction_timestamps = [timestamp for timestamp, _ in transaction_history]
+        cumulative_shares = [0.0]
+        for _, shares in transaction_history:
+            cumulative_shares.append(cumulative_shares[-1] + shares)
+        known_transaction_costs = sum(
+            float(transaction["cost"])
+            for transaction in asset_transactions
+            if transaction.get("cost") is not None
+        )
+        legacy_transaction_shares = sum(
+            float(transaction["shares"])
+            for transaction in asset_transactions
+            if transaction.get("cost") is None
+        )
+        legacy_average_cost = (
+            max(asset["cost_basis"] - known_transaction_costs, 0.0)
+            / legacy_transaction_shares
+            if legacy_transaction_shares > 0
+            else 0.0
+        )
+        cumulative_costs = [0.0]
+        for transaction in sorted(
+            asset_transactions,
+            key=lambda item: date.fromisoformat(item["date"]),
+        ):
+            transaction_cost = transaction.get("cost")
+            if transaction_cost is None:
+                transaction_cost = float(transaction["shares"]) * legacy_average_cost
+            cumulative_costs.append(cumulative_costs[-1] + float(transaction_cost))
+        investment_points = []
+        for point in points:
+            timestamp = int(point["timestamp"])
+            transaction_index = bisect_right(transaction_timestamps, timestamp)
+            held_shares = cumulative_shares[transaction_index]
+            if held_shares <= 0:
+                continue
+            position_value = float(point["value"]) * held_shares
+            estimated_cost_basis = cumulative_costs[transaction_index]
+            investment_points.append(
+                {
+                    "timestamp": timestamp,
+                    "value": round(position_value - estimated_cost_basis, 2),
+                    "position_value": round(position_value, 2),
+                    "estimated_cost_basis": round(estimated_cost_basis, 2),
+                    "shares": held_shares,
+                }
+            )
+        if not investment_points:
+            raise HTTPException(
+                status_code=503,
+                detail="No investment history is available for this position and period.",
+            )
         asset["shares"] = sum(
             float(transaction["shares"])
             for transaction in asset_transactions
@@ -548,6 +819,7 @@ def get_portfolio_history(period: str = "1m", isin: str | None = None):
             "Historical market value is reconstructed from recorded purchases and "
             "Yahoo Finance prices. Cash balance is excluded."
         ),
+        **({"investment_points": investment_points} if asset else {}),
     }
 
 

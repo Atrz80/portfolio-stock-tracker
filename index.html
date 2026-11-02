@@ -108,6 +108,91 @@
                 <div id="ticker-results" role="listbox" aria-label="Local catalog results" class="hidden max-h-40 overflow-y-auto bg-gray-950 border border-gray-700 rounded-lg p-2 text-xs"></div>
             </section>
 
+            <details class="mb-6 bg-gray-900 border border-gray-800 rounded-2xl p-4">
+                <summary class="cursor-pointer font-semibold text-sm">Manage portfolio positions</summary>
+                <div class="mt-4 grid gap-5 lg:grid-cols-2">
+                    <form id="add-position-form" class="space-y-3 rounded-xl border border-gray-800 bg-gray-950 p-4">
+                        <h2 class="font-semibold">Add a position</h2>
+                        <p class="text-xs text-gray-400">Required: product name, Yahoo Finance symbol, shares held, total amount invested in EUR, and purchase date. Optional: ISIN, display ticker, and Finnhub symbol. Check the market symbol and currency on Yahoo Finance before saving.</p>
+                        <label class="block text-xs text-gray-300">Product name *
+                            <input name="name" required maxlength="100" class="mt-1 w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2" placeholder="Example: Global Equity ETF">
+                        </label>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <label class="block text-xs text-gray-300">Yahoo Finance symbol *
+                                <input name="market_symbol" required maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9.^=_-]{0,31}" class="mt-1 w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2" placeholder="Example: VWRA.L">
+                            </label>
+                            <label class="block text-xs text-gray-300">Shares held *
+                                <input name="shares" type="number" min="0.000001" step="any" required class="mt-1 w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2" placeholder="Example: 10">
+                            </label>
+                        </div>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <label class="block text-xs text-gray-300">Total invested (EUR) *
+                                <input name="cost_basis_eur" type="number" min="0.01" step="0.01" required class="mt-1 w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2" placeholder="Including purchase costs if known">
+                            </label>
+                            <label class="block text-xs text-gray-300">Purchase date *
+                                <input name="purchase_date" type="date" required class="mt-1 w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2">
+                            </label>
+                        </div>
+                        <details>
+                            <summary class="cursor-pointer text-xs text-gray-400">Optional identifiers and provider symbols</summary>
+                            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                                <label class="block text-xs text-gray-300">ISIN or unique identifier
+                                    <input name="isin" maxlength="24" class="mt-1 w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2" placeholder="Example: IE00...">
+                                </label>
+                                <label class="block text-xs text-gray-300">Display ticker
+                                    <input name="display_ticker" maxlength="32" class="mt-1 w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2" placeholder="Optional short label">
+                                </label>
+                                <label class="block text-xs text-gray-300 sm:col-span-2">Finnhub symbol
+                                    <input name="finnhub_symbol" maxlength="32" class="mt-1 w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2" placeholder="Only needed when using Finnhub">
+                                </label>
+                            </div>
+                        </details>
+                        <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold hover:bg-indigo-500">Add position</button>
+                        <p id="position-form-status" role="status" class="text-xs text-gray-400"></p>
+                    </form>
+
+                    <section class="rounded-xl border border-gray-800 bg-gray-950 p-4" aria-labelledby="position-safety-title">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <h2 id="position-safety-title" class="font-semibold">Position safety</h2>
+                                <p id="position-lock-status" class="mt-1 text-xs text-emerald-400">Locked · purchases, archive, and restore are disabled.</p>
+                            </div>
+                            <button id="position-lock-toggle" type="button" onclick="togglePositionManagementLock()" aria-pressed="false" class="rounded-lg border border-gray-700 px-3 py-2 text-xs hover:bg-gray-800">🔒 Unlock management</button>
+                        </div>
+                        <p class="mt-3 text-xs text-gray-400">Archiving hides a position but never permanently deletes it. Restore archived positions at any time. Every change also creates a private local backup.</p>
+                        <div id="managed-active-positions" class="mt-4 space-y-2"></div>
+                        <details class="mt-4 border-t border-gray-800 pt-3">
+                            <summary class="cursor-pointer text-xs text-gray-300">Archived positions <span id="archived-position-count">(0)</span></summary>
+                            <div id="managed-archived-positions" class="mt-3 space-y-2"></div>
+                        </details>
+                        <p id="managed-positions-status" role="status" class="mt-3 text-xs text-gray-400"></p>
+                    </section>
+                </div>
+            </details>
+
+            <dialog id="add-purchase-dialog" class="rounded-2xl border border-gray-700 bg-gray-900 p-0 text-gray-100 shadow-2xl">
+                <form id="add-purchase-form" class="w-[min(92vw,28rem)] space-y-4 p-5">
+                    <div>
+                        <h2 class="text-lg font-bold">Record a purchase</h2>
+                        <p id="add-purchase-title" class="mt-1 text-xs text-gray-400"></p>
+                    </div>
+                    <label class="block text-xs text-gray-300">Shares bought *
+                        <input name="shares" type="number" min="0.000001" step="any" required class="mt-1 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2">
+                    </label>
+                    <label class="block text-xs text-gray-300">Total purchase amount (EUR) *
+                        <input name="cost_basis_eur" type="number" min="0.01" step="0.01" required class="mt-1 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2">
+                    </label>
+                    <label class="block text-xs text-gray-300">Purchase date *
+                        <input name="purchase_date" type="date" required class="mt-1 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2">
+                    </label>
+                    <p id="add-purchase-status" role="status" class="text-xs text-gray-400"></p>
+                    <div class="flex justify-end gap-2">
+                        <button type="button" onclick="document.getElementById('add-purchase-dialog').close()" class="rounded-lg border border-gray-700 px-3 py-2 text-xs">Cancel</button>
+                        <button type="submit" class="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold">Save purchase</button>
+                    </div>
+                </form>
+            </dialog>
+
         <!-- Desktop View -->
         <div id="desktop-view" class="w-full max-w-7xl space-y-6">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -195,12 +280,19 @@
                         <button type="button" data-asset-history-period="ytd" onclick="loadAssetHistory('ytd')" class="asset-history-period-button rounded-lg bg-gray-800 px-3 py-1.5 text-xs" aria-pressed="false">YTD</button>
                         <button type="button" data-asset-history-period="max" onclick="loadAssetHistory('max')" class="asset-history-period-button rounded-lg bg-gray-800 px-3 py-1.5 text-xs" aria-pressed="false">ALL</button>
                     </div>
+                    <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex flex-wrap gap-2" role="group" aria-label="Asset chart view">
+                            <button type="button" data-asset-chart-view="price" onclick="setAssetHistoryChartView('price')" class="asset-chart-view-button rounded-lg bg-indigo-600 px-3 py-1.5 text-xs" aria-pressed="true">Product price</button>
+                            <button type="button" data-asset-chart-view="investment" onclick="setAssetHistoryChartView('investment')" class="asset-chart-view-button rounded-lg bg-gray-800 px-3 py-1.5 text-xs" aria-pressed="false">My investment</button>
+                        </div>
+                        <p id="asset-history-chart-label" class="text-xs text-gray-400">Product price · EUR per share</p>
+                    </div>
                     <div class="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
-                        <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Price per share at period end</p><p id="asset-history-value" class="mt-1 font-semibold">—</p></div>
-                        <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Price change in period</p><p id="asset-history-change" class="mt-1 font-semibold">—</p></div>
-                        <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Estimated P/L on your holding</p><p id="asset-history-investment-gain" class="mt-1 font-semibold">—</p></div>
-                        <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Period high per share</p><p id="asset-history-high" class="mt-1 font-semibold">—</p></div>
-                        <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Period low per share</p><p id="asset-history-low" class="mt-1 font-semibold">—</p></div>
+                        <div class="rounded-lg bg-gray-950 p-3"><p id="asset-history-value-label" class="text-xs text-gray-400">Price per share at period end</p><p id="asset-history-value" class="mt-1 font-semibold">—</p></div>
+                        <div class="rounded-lg bg-gray-950 p-3"><p id="asset-history-change-label" class="text-xs text-gray-400">Price change in period</p><p id="asset-history-change" class="mt-1 font-semibold">—</p></div>
+                        <div class="rounded-lg bg-gray-950 p-3"><p id="asset-history-investment-gain-label" class="text-xs text-gray-400">Estimated P/L on your holding</p><p id="asset-history-investment-gain" class="mt-1 font-semibold">—</p></div>
+                        <div class="rounded-lg bg-gray-950 p-3"><p id="asset-history-high-label" class="text-xs text-gray-400">Period high per share</p><p id="asset-history-high" class="mt-1 font-semibold">—</p></div>
+                        <div class="rounded-lg bg-gray-950 p-3"><p id="asset-history-low-label" class="text-xs text-gray-400">Period low per share</p><p id="asset-history-low" class="mt-1 font-semibold">—</p></div>
                     </div>
                     <div id="asset-history-chart-shell" class="relative">
                         <svg id="asset-history-chart" viewBox="0 0 1000 260" preserveAspectRatio="none" role="img" aria-label="Historical price per share in euros. Move or tap to inspect values." tabindex="0" class="w-full h-56 overflow-visible touch-pan-y">
@@ -210,6 +302,7 @@
                                     <stop offset="100%" stop-color="#6366f1" stop-opacity="0"></stop>
                                 </linearGradient>
                             </defs>
+                            <line id="asset-history-zero-line" x1="12" x2="988" y1="0" y2="0" stroke="#64748b" stroke-width="1" stroke-dasharray="4 5" vector-effect="non-scaling-stroke" visibility="hidden"></line>
                             <path id="asset-history-area" fill="url(#asset-history-gradient)"></path>
                             <path id="asset-history-line" fill="none" stroke="#818cf8" stroke-width="3" vector-effect="non-scaling-stroke"></path>
                             <g id="asset-history-crosshair" visibility="hidden" class="pointer-events-none">
@@ -233,14 +326,14 @@
                     <h3 class="font-bold text-lg"><i class="fa-solid fa-list mr-2 text-indigo-500"></i> Live positions</h3>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse">
+                    <table class="w-full min-w-[980px] text-left border-collapse">
                         <thead>
-                            <tr class="bg-gray-950/60 text-gray-400 text-xs uppercase border-b border-gray-800">
-                                <th class="p-4">Ticker</th>
-                                <th class="p-4">Name</th>
-                                <th class="p-4">Current price</th>
-                                <th class="p-4">24h change</th>
-                                <th class="p-4 text-right">Source</th>
+                            <tr class="bg-gray-950/60 text-gray-400 text-[11px] uppercase border-b border-gray-800">
+                                <th class="p-4">Product</th>
+                                <th class="p-4 text-right">Position / quote</th>
+                                <th class="p-4 text-right">Gain / loss</th>
+                                <th class="p-4 text-right">Gain / loss %</th>
+                                <th class="p-4 text-right">24h change / source</th>
                             </tr>
                         </thead>
                         <tbody id="portfolio-table-body" class="divide-y divide-gray-800 text-sm"></tbody>
@@ -305,6 +398,10 @@
         let assetHistoryRequestId = 0;
         let activeAssetIsin = null;
         let activeAssetHistoryPeriod = '1d';
+        let activeAssetHistoryChartView = 'price';
+        let activeAssetHistoryPayload = null;
+        let positionManagementUnlocked = false;
+        let activePurchasePosition = null;
         let activePortfolioHistoryPeriod = '1d';
         const lastAnimatedPriceBySymbol = new Map();
         const activePositionsByIsin = new Map();
@@ -314,30 +411,73 @@
             return String(stock.ticker || '').split('•')[0].trim().toUpperCase();
         }
 
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, character => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            })[character]);
+        }
+
         function quoteMarkup(stock) {
             const change = Number(stock.changePercent ?? 0);
             const isPositive = change >= 0;
             const colorClass = isPositive ? 'text-emerald-400' : 'text-rose-400';
             const icon = isPositive ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down';
+            const gain = Number(stock.gain ?? 0);
+            const gainPct = Number(stock.gainPct ?? 0);
+            const gainColorClass = gain >= 0 ? 'text-emerald-400' : 'text-rose-400';
             const marketPrice = `${Number(stock.marketPrice).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${stock.marketCurrency}`;
             const portfolioPrice = `${Number(stock.price).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} EUR`;
             const changeText = `${change > 0 ? '+' : ''}${change.toFixed(2)}%`;
+            const gainText = `${gain >= 0 ? '+' : '−'}${currencyFormatter.format(Math.abs(gain))}`;
+            const gainPctText = `${gainPct > 0 ? '+' : ''}${gainPct.toFixed(2)}%`;
+            const positionValue = currencyFormatter.format(Number(stock.value ?? 0));
+            const shares = Number(stock.shares ?? 0).toLocaleString('en-GB', { maximumFractionDigits: 6 });
+            const productType = /\betf\b/i.test(stock.name) ? 'ETF' : 'Stock';
+            const productIcon = productType === 'ETF' ? 'fa-layer-group' : 'fa-chart-line';
             const quoteTime = stock.quoteTimestamp ? new Date(stock.quoteTimestamp).toLocaleString('en-GB') : 'no timestamp';
             const delivery = stock.dataStatus === 'realtime_push' ? 'push' : (stock.marketState && stock.marketState !== 'UNKNOWN' ? stock.marketState.toLowerCase() : 'snapshot');
             const source = stock.dataSource || 'Yahoo Finance';
-            return { change, colorClass, icon, marketPrice, portfolioPrice, changeText, quoteTime, delivery: `${source} · ${delivery}` };
+            return {
+                change, colorClass, icon, marketPrice, portfolioPrice, changeText, quoteTime,
+                delivery: `${source} · ${delivery}`, gain, gainColorClass, gainText, gainPctText,
+                positionValue, shares, productType, productIcon
+            };
         }
 
         function desktopRow(stock) {
             const view = quoteMarkup(stock);
             const isin = positionIsin(stock);
             return `
-                <tr data-symbol="${stock.marketSymbol}" data-isin="${isin}" tabindex="0" role="button" aria-label="View history for ${stock.name}" class="cursor-pointer hover:bg-gray-950/60 focus:bg-gray-950/60 transition">
-                    <td class="p-4 font-bold text-indigo-400">${stock.marketSymbol}</td>
-                    <td class="p-4 text-gray-300">${stock.name}<div class="text-xs text-gray-500 mt-1">${stock.ticker.split('•')[0].trim()} · ${stock.shares} uds.</div></td>
-                    <td class="p-4 font-semibold"><span data-field="portfolio-price" class="price-value">${view.portfolioPrice}</span><div class="text-xs text-gray-500 mt-1">Market: <span data-field="market-price">${view.marketPrice}</span></div></td>
-                    <td class="p-4 ${view.colorClass} font-medium"><i class="fa-solid ${view.icon} mr-1"></i> <span data-field="change">${view.changeText}</span><div class="text-xs text-gray-500 mt-1"><span data-field="quote-time">${view.quoteTime}</span></div></td>
-                    <td class="p-4 text-right"><span data-field="delivery" class="px-2.5 py-1 bg-gray-800 text-xs rounded-lg text-gray-300">${view.delivery}</span></td>
+                <tr data-symbol="${escapeHtml(stock.marketSymbol)}" data-isin="${escapeHtml(isin)}" tabindex="0" role="button" aria-label="View history for ${escapeHtml(stock.name)}" class="cursor-pointer border-b border-gray-800/80 hover:bg-gray-800/60 focus:bg-gray-800/60 transition">
+                    <td class="p-4">
+                        <div class="flex items-center gap-3">
+                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-500/10 text-cyan-300"><i class="fa-solid ${view.productIcon}" aria-hidden="true"></i></span>
+                            <div class="min-w-0">
+                                <div class="text-[10px] text-gray-500">${view.productType} · ${escapeHtml(stock.ticker.split('•')[0].trim())}</div>
+                                <div class="mt-0.5 max-w-[360px] text-sm font-bold leading-snug text-gray-100">${escapeHtml(stock.name)}</div>
+                                <div class="mt-0.5 text-xs text-gray-500">${escapeHtml(stock.marketSymbol)} · ${escapeHtml(stock.ticker.split('•')[1]?.trim() || '')}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="p-4 text-right">
+                        <div class="font-semibold text-gray-100" data-field="position-value">${view.positionValue}</div>
+                        <div class="mt-1 flex items-center justify-end gap-1.5 text-xs text-gray-400">
+                            <span class="rounded bg-gray-700 px-1.5 py-0.5 font-medium text-gray-200" data-field="shares">${view.shares} shares</span>
+                            <span class="price-value" data-field="portfolio-price">${view.portfolioPrice}</span>
+                        </div>
+                        <div class="mt-0.5 text-[11px] text-gray-500">Market: <span data-field="market-price">${view.marketPrice}</span></div>
+                    </td>
+                    <td class="p-4 text-right font-semibold ${view.gainColorClass}"><span data-field="gain">${view.gainText}</span></td>
+                    <td class="p-4 text-right"><span data-field="gain-pct" class="rounded-md border px-2 py-1 text-xs font-semibold ${view.gainColorClass} ${view.gain >= 0 ? 'border-emerald-500/20 bg-emerald-500/10' : 'border-rose-500/20 bg-rose-500/10'}">${view.gainPctText}</span></td>
+                    <td class="p-4 text-right ${view.colorClass}">
+                        <div class="font-semibold"><i class="fa-solid ${view.icon} mr-1" aria-hidden="true"></i><span data-field="change">${view.changeText}</span></div>
+                        <div class="mt-1 text-[11px] text-gray-500"><span data-field="quote-time">${view.quoteTime}</span></div>
+                        <div class="mt-1"><span data-field="delivery" class="rounded bg-gray-800 px-2 py-1 text-[10px] text-gray-300">${escapeHtml(view.delivery)}</span></div>
+                    </td>
                 </tr>
             `;
         }
@@ -346,16 +486,30 @@
             const view = quoteMarkup(stock);
             const isin = positionIsin(stock);
             return `
-                <div data-symbol="${stock.marketSymbol}" data-isin="${isin}" tabindex="0" role="button" aria-label="View history for ${stock.name}" class="bg-gray-900 border border-gray-800 p-3 rounded-xl flex justify-between items-center text-xs cursor-pointer hover:border-indigo-500 focus:border-indigo-500">
-                    <div>
-                        <p class="font-bold text-indigo-400">${stock.marketSymbol}</p>
-                        <p class="text-gray-400">${stock.name}</p>
-                        <p class="text-gray-500 mt-1">Market: <span data-field="market-price">${view.marketPrice}</span></p>
+                <div data-symbol="${escapeHtml(stock.marketSymbol)}" data-isin="${escapeHtml(isin)}" tabindex="0" role="button" aria-label="View history for ${escapeHtml(stock.name)}" class="cursor-pointer rounded-xl border border-gray-800 bg-gray-900 p-3 text-xs hover:border-indigo-500 focus:border-indigo-500">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex min-w-0 items-center gap-2.5">
+                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-cyan-500/10 text-cyan-300"><i class="fa-solid ${view.productIcon}" aria-hidden="true"></i></span>
+                            <div class="min-w-0">
+                                <p class="truncate text-sm font-bold text-gray-100">${escapeHtml(stock.name)}</p>
+                                <p class="mt-0.5 text-[10px] text-gray-500">${view.productType} · ${escapeHtml(stock.marketSymbol)}</p>
+                            </div>
+                        </div>
+                        <div class="shrink-0 text-right">
+                            <p class="font-semibold text-gray-100" data-field="position-value">${view.positionValue}</p>
+                            <p class="mt-0.5 text-[10px] text-gray-400"><span data-field="shares">${view.shares} shares</span> · <span data-field="portfolio-price">${view.portfolioPrice}</span></p>
+                        </div>
                     </div>
-                    <div class="text-right">
-                        <p class="font-semibold price-value" data-field="portfolio-price">${view.portfolioPrice}</p>
-                        <p class="${view.colorClass}" data-field="change">${view.changeText}</p>
-                        <p class="text-gray-500 mt-1" data-field="delivery">${view.delivery}</p>
+                    <div class="mt-3 flex items-end justify-between border-t border-gray-800 pt-2.5">
+                        <div>
+                            <p class="text-[10px] text-gray-500">Unrealized gain / loss</p>
+                            <p class="mt-0.5 font-semibold ${view.gainColorClass}" data-field="gain">${view.gainText}</p>
+                        </div>
+                        <span data-field="gain-pct" class="rounded-md border px-2 py-1 font-semibold ${view.gainColorClass} ${view.gain >= 0 ? 'border-emerald-500/20 bg-emerald-500/10' : 'border-rose-500/20 bg-rose-500/10'}">${view.gainPctText}</span>
+                        <div class="text-right ${view.colorClass}">
+                            <p class="font-medium"><i class="fa-solid ${view.icon} mr-1" aria-hidden="true"></i><span data-field="change">${view.changeText}</span></p>
+                            <p class="mt-0.5 text-[10px] text-gray-500" data-field="delivery">${escapeHtml(view.delivery)}</p>
+                        </div>
                     </div>
                 </div>
             `;
@@ -380,11 +534,29 @@
                     const target = element.querySelector(`[data-field="${field}"]`);
                     if (target) target.textContent = value;
                 };
+                setText('position-value', view.positionValue);
+                setText('shares', `${view.shares} shares`);
                 setText('portfolio-price', view.portfolioPrice);
                 setText('market-price', view.marketPrice);
+                setText('gain', view.gainText);
+                setText('gain-pct', view.gainPctText);
                 setText('change', view.changeText);
                 setText('quote-time', view.quoteTime);
                 setText('delivery', view.delivery);
+                const gainCell = element.querySelector('[data-field="gain"]')?.closest('td, p');
+                if (gainCell) {
+                    gainCell.classList.remove('text-emerald-400', 'text-rose-400');
+                    gainCell.classList.add(view.gainColorClass);
+                }
+                const gainBadge = element.querySelector('[data-field="gain-pct"]');
+                if (gainBadge) {
+                    gainBadge.classList.remove('text-emerald-400', 'text-rose-400', 'border-emerald-500/20', 'bg-emerald-500/10', 'border-rose-500/20', 'bg-rose-500/10');
+                    gainBadge.classList.add(
+                        view.gainColorClass,
+                        view.gain >= 0 ? 'border-emerald-500/20' : 'border-rose-500/20',
+                        view.gain >= 0 ? 'bg-emerald-500/10' : 'bg-rose-500/10'
+                    );
+                }
                 const changeCell = element.querySelector('[data-field="change"]')?.closest('td, p');
                 if (changeCell) {
                     changeCell.classList.remove('text-emerald-400', 'text-rose-400');
@@ -543,8 +715,8 @@
         function renderHistoryChart(points, chartIds) {
             if (!points.length) throw new Error('No historical data is available for this period.');
             const values = points.map(point => Number(point.value));
-            const minValue = Math.min(...values);
-            const maxValue = Math.max(...values);
+            const minValue = chartIds.includeZero ? Math.min(...values, 0) : Math.min(...values);
+            const maxValue = chartIds.includeZero ? Math.max(...values, 0) : Math.max(...values);
             const range = maxValue - minValue || Math.max(maxValue * 0.01, 1);
             const width = 1000;
             const height = 250;
@@ -553,6 +725,17 @@
                 x: padding + (points.length === 1 ? 0 : index * (width - 2 * padding) / (points.length - 1)),
                 y: height - padding - ((value - minValue) / range) * (height - 2 * padding)
             }));
+            if (chartIds.zeroLine) {
+                const zeroLine = document.getElementById(chartIds.zeroLine);
+                if (chartIds.includeZero) {
+                    const zeroY = height - padding - ((0 - minValue) / range) * (height - 2 * padding);
+                    zeroLine.setAttribute('y1', zeroY);
+                    zeroLine.setAttribute('y2', zeroY);
+                    zeroLine.setAttribute('visibility', 'visible');
+                } else {
+                    zeroLine.setAttribute('visibility', 'hidden');
+                }
+            }
             const linePath = coordinates
                 .map((point, index) => `${index ? 'L' : 'M'}${point.x.toFixed(2)},${point.y.toFixed(2)}`)
                 .join(' ');
@@ -712,39 +895,103 @@
 
         function closeAssetHistory() {
             assetHistoryRequestId++;
+            activeAssetHistoryPayload = null;
             document.getElementById('asset-history-dialog').close();
         }
 
+        function setAssetHistoryChartView(view) {
+            if (view !== 'price' && view !== 'investment') return;
+            activeAssetHistoryChartView = view;
+            document.querySelectorAll('.asset-chart-view-button').forEach(button => {
+                const selected = button.dataset.assetChartView === view;
+                button.className = `asset-chart-view-button rounded-lg px-3 py-1.5 text-xs ${selected ? 'bg-indigo-600' : 'bg-gray-800'}`;
+                button.setAttribute('aria-pressed', String(selected));
+            });
+            if (activeAssetHistoryPayload) renderAssetHistory(activeAssetHistoryPayload);
+        }
+
         function renderAssetHistory(payload) {
-            const points = payload.points || [];
+            activeAssetHistoryPayload = payload;
+            const isInvestmentView = activeAssetHistoryChartView === 'investment';
+            const points = isInvestmentView ? (payload.investment_points || []) : (payload.points || []);
             renderHistoryChart(points, {
                 line: 'asset-history-line',
                 area: 'asset-history-area',
                 gradient: 'asset-history-gradient',
                 crosshair: 'asset-history-crosshair',
-                tooltip: 'asset-history-tooltip'
+                tooltip: 'asset-history-tooltip',
+                zeroLine: 'asset-history-zero-line',
+                includeZero: isInvestmentView
             });
+            document.getElementById('asset-history-chart-label').textContent = isInvestmentView
+                ? 'Estimated unrealized P/L over time · EUR'
+                : 'Product price · EUR per share';
+            document.getElementById('asset-history-chart').setAttribute(
+                'aria-label',
+                isInvestmentView
+                    ? 'Estimated unrealized investment profit or loss in euros. Move or tap to inspect values.'
+                    : 'Historical price per share in euros. Move or tap to inspect values.'
+            );
+            document.getElementById('asset-history-value-label').textContent = isInvestmentView
+                ? 'Estimated value at period end'
+                : 'Price per share at period end';
+            document.getElementById('asset-history-change-label').textContent = isInvestmentView
+                ? 'Value change in period'
+                : 'Price change in period';
+            document.getElementById('asset-history-investment-gain-label').textContent = isInvestmentView
+                ? 'Estimated P/L at period end'
+                : 'Estimated P/L on your holding';
+            document.getElementById('asset-history-high-label').textContent = isInvestmentView
+                ? 'Highest estimated P/L'
+                : 'Period high per share';
+            document.getElementById('asset-history-low-label').textContent = isInvestmentView
+                ? 'Lowest estimated P/L'
+                : 'Period low per share';
             const summary = payload.summary;
             const change = document.getElementById('asset-history-change');
+            const investmentPoints = payload.investment_points || [];
+            const firstChartPoint = points[0];
+            const lastChartPoint = points.at(-1);
+            const periodChange = isInvestmentView
+                ? lastChartPoint.value - firstChartPoint.value
+                : summary.change;
+            const periodChangePct = isInvestmentView
+                ? null
+                : summary.change_pct;
             change.textContent =
-                `${summary.change >= 0 ? '+' : '−'}${currencyFormatter.format(Math.abs(summary.change))} (${summary.change_pct >= 0 ? '+' : ''}${summary.change_pct.toFixed(2)}%)`;
-            change.className = `mt-1 font-semibold ${summary.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
-            document.getElementById('asset-history-value').textContent = currencyFormatter.format(summary.end_value);
+                `${periodChange >= 0 ? '+' : '−'}${currencyFormatter.format(Math.abs(periodChange))}${periodChangePct === null ? '' : ` (${periodChangePct >= 0 ? '+' : ''}${periodChangePct.toFixed(2)}%)`}`;
+            change.className = `mt-1 font-semibold ${periodChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+            document.getElementById('asset-history-value').textContent = currencyFormatter.format(
+                isInvestmentView ? lastChartPoint.position_value : summary.end_value
+            );
             const investmentGain = document.getElementById('asset-history-investment-gain');
+            const lastInvestmentPoint = investmentPoints.at(-1);
+            const displayedInvestmentGain = isInvestmentView
+                ? lastChartPoint.value
+                : payload.asset.period_gain;
+            const displayedInvestmentGainPct = isInvestmentView
+                ? (lastInvestmentPoint.estimated_cost_basis
+                    ? lastInvestmentPoint.value / lastInvestmentPoint.estimated_cost_basis * 100
+                    : 0)
+                : payload.asset.period_gain_pct;
             investmentGain.textContent =
-                `${payload.asset.period_gain >= 0 ? '+' : '−'}${currencyFormatter.format(Math.abs(payload.asset.period_gain))} (${payload.asset.period_gain_pct >= 0 ? '+' : ''}${payload.asset.period_gain_pct.toFixed(2)}%)`;
-            investmentGain.className = `mt-1 font-semibold ${payload.asset.period_gain >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+                `${displayedInvestmentGain >= 0 ? '+' : '−'}${currencyFormatter.format(Math.abs(displayedInvestmentGain))} (${displayedInvestmentGainPct >= 0 ? '+' : ''}${displayedInvestmentGainPct.toFixed(2)}%)`;
+            investmentGain.className = `mt-1 font-semibold ${displayedInvestmentGain >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+            const highestPoint = points.reduce((highest, point) => point.value > highest.value ? point : highest);
+            const lowestPoint = points.reduce((lowest, point) => point.value < lowest.value ? point : lowest);
+            const highValue = isInvestmentView ? highestPoint.value : summary.high;
+            const lowValue = isInvestmentView ? lowestPoint.value : summary.low;
             document.getElementById('asset-history-high').textContent =
-                `${currencyFormatter.format(summary.high)} · ${new Date(summary.high_timestamp * 1000).toLocaleDateString('en-GB')}`;
+                `${currencyFormatter.format(highValue)} · ${new Date((isInvestmentView ? highestPoint : { timestamp: summary.high_timestamp }).timestamp * 1000).toLocaleDateString('en-GB')}`;
             document.getElementById('asset-history-low').textContent =
-                `${currencyFormatter.format(summary.low)} · ${new Date(summary.low_timestamp * 1000).toLocaleDateString('en-GB')}`;
+                `${currencyFormatter.format(lowValue)} · ${new Date((isInvestmentView ? lowestPoint : { timestamp: summary.low_timestamp }).timestamp * 1000).toLocaleDateString('en-GB')}`;
             document.getElementById('asset-history-start-label').textContent = new Date(points[0].timestamp * 1000).toLocaleDateString('en-GB');
             document.getElementById('asset-history-end-label').textContent = new Date(points.at(-1).timestamp * 1000).toLocaleDateString('en-GB');
             document.getElementById('asset-history-status').textContent =
                 `${payload.note} Available history starts ${new Date(`${payload.available_from}T00:00:00Z`).toLocaleDateString('en-GB')}.`;
             const asset = payload.asset;
             document.getElementById('asset-history-details').textContent =
-                `Share-price history is independent of your purchase dates. Your all-time position: ${asset.shares} shares · Cost basis ${currencyFormatter.format(asset.cost_basis)} · Estimated value at the last historical price ${currencyFormatter.format(asset.last_value)} · Unrealized P/L against your investment ${currencyFormatter.format(asset.unrealized_gain)} (${asset.unrealized_gain_pct >= 0 ? '+' : ''}${asset.unrealized_gain_pct.toFixed(2)}%). Period P/L estimates the effect on shares held and subtracts purchases using your average cost basis.`;
+                `Your position: ${asset.shares} shares · Cost basis ${currencyFormatter.format(asset.cost_basis)} · Estimated current value ${currencyFormatter.format(asset.last_value)} · Unrealized P/L ${currencyFormatter.format(asset.unrealized_gain)} (${asset.unrealized_gain_pct >= 0 ? '+' : ''}${asset.unrealized_gain_pct.toFixed(2)}%). Investment history uses your recorded purchase dates and estimates each share's cost from your average cost basis; exact per-purchase prices are not available.`;
         }
 
         async function loadAssetHistory(period) {
@@ -870,6 +1117,213 @@
             }
         }
 
+        function renderManagedPositionList(container, positions, action, locked) {
+            container.replaceChildren();
+            if (!positions.length) {
+                const emptyState = document.createElement('p');
+                emptyState.className = 'text-xs text-gray-500';
+                emptyState.textContent = action === 'archive'
+                    ? 'No active positions.'
+                    : 'No archived positions.';
+                container.append(emptyState);
+                return;
+            }
+
+            for (const position of positions) {
+                const row = document.createElement('div');
+                row.className = 'flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-800 px-3 py-2';
+                const label = document.createElement('span');
+                label.className = 'text-xs text-gray-300';
+                label.textContent = `${position.name} · ${position.marketSymbol || positionIsin(position)}`;
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'position-mutation-button rounded-lg border border-gray-700 px-3 py-1.5 text-xs hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40';
+                button.textContent = action === 'archive' ? 'Archive' : 'Restore';
+                button.disabled = locked;
+                button.addEventListener('click', () => {
+                    if (action === 'archive') archiveManagedPosition(position);
+                    else restoreManagedPosition(position);
+                });
+                row.append(label, button);
+                if (action === 'archive') {
+                    const purchaseButton = document.createElement('button');
+                    purchaseButton.type = 'button';
+                    purchaseButton.className = button.className;
+                    purchaseButton.textContent = 'Record purchase';
+                    purchaseButton.disabled = locked;
+                    purchaseButton.addEventListener('click', () => openPurchaseDialog(position));
+                    row.append(purchaseButton);
+                }
+                container.append(row);
+            }
+        }
+
+        async function loadManagedPositions() {
+            const status = document.getElementById('managed-positions-status');
+            try {
+                const response = await fetch('/api/portfolio/positions');
+                const payload = await response.json();
+                if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
+                if (!Array.isArray(payload.active) || !Array.isArray(payload.archived)) {
+                    throw new Error('Invalid position-management response');
+                }
+                renderManagedPositionList(
+                    document.getElementById('managed-active-positions'),
+                    payload.active,
+                    'archive',
+                    !positionManagementUnlocked
+                );
+                renderManagedPositionList(
+                    document.getElementById('managed-archived-positions'),
+                    payload.archived,
+                    'restore',
+                    !positionManagementUnlocked
+                );
+                document.getElementById('archived-position-count').textContent =
+                    `(${payload.archived.length})`;
+                status.textContent = `${payload.active.length} active · ${payload.archived.length} archived.`;
+            } catch (error) {
+                console.error('Could not load managed positions:', error);
+                status.textContent = `Could not load positions: ${error.message}`;
+            }
+        }
+
+        function togglePositionManagementLock() {
+            positionManagementUnlocked = !positionManagementUnlocked;
+            const button = document.getElementById('position-lock-toggle');
+            const status = document.getElementById('position-lock-status');
+            button.setAttribute('aria-pressed', String(positionManagementUnlocked));
+            button.textContent = positionManagementUnlocked
+                ? '🔓 Lock management'
+                : '🔒 Unlock management';
+            status.textContent = positionManagementUnlocked
+                ? 'Unlocked · purchase, archive, and restore actions are enabled.'
+                : 'Locked · purchases, archive, and restore are disabled.';
+            status.className = `mt-1 text-xs ${positionManagementUnlocked ? 'text-amber-400' : 'text-emerald-400'}`;
+            loadManagedPositions();
+        }
+
+        async function updateManagedPosition(position, action) {
+            const identifier = positionIsin(position);
+            const buttonAction = action === 'archive' ? 'archive' : 'restore';
+            const status = document.getElementById('managed-positions-status');
+            status.textContent = action === 'archive' ? 'Archiving position…' : 'Restoring position…';
+            try {
+                const response = await fetch(
+                    `/api/portfolio/positions/${encodeURIComponent(identifier)}/${buttonAction}`,
+                    { method: 'POST' }
+                );
+                const payload = await response.json();
+                if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
+                await loadManagedPositions();
+                await refreshData();
+                status.textContent = action === 'archive'
+                    ? `${position.name} was archived and can be restored.`
+                    : `${position.name} was restored.`;
+            } catch (error) {
+                console.error(`Could not ${buttonAction} position:`, error);
+                status.textContent = `Could not ${buttonAction} position: ${error.message}`;
+            }
+        }
+
+        function archiveManagedPosition(position) {
+            if (!positionManagementUnlocked) return;
+            const confirmed = window.confirm(
+                `Archive ${position.name}? It will disappear from the active portfolio but will not be deleted and can be restored.`
+            );
+            if (confirmed) updateManagedPosition(position, 'archive');
+        }
+
+        function restoreManagedPosition(position) {
+            if (!positionManagementUnlocked) return;
+            updateManagedPosition(position, 'restore');
+        }
+
+        function openPurchaseDialog(position) {
+            if (!positionManagementUnlocked) return;
+            activePurchasePosition = position;
+            document.getElementById('add-purchase-title').textContent =
+                `${position.name} · ${position.marketSymbol || positionIsin(position)}`;
+            document.getElementById('add-purchase-status').textContent =
+                'Enter the actual purchase amount in EUR and the trade date.';
+            const form = document.getElementById('add-purchase-form');
+            form.reset();
+            form.elements.purchase_date.value = new Date().toISOString().slice(0, 10);
+            document.getElementById('add-purchase-dialog').showModal();
+        }
+
+        document.getElementById('add-position-form').addEventListener('submit', async event => {
+            event.preventDefault();
+            const form = event.currentTarget;
+            const submitButton = form.querySelector('[type="submit"]');
+            const status = document.getElementById('position-form-status');
+            const formData = new FormData(form);
+            const request = Object.fromEntries(formData.entries());
+            request.shares = Number(request.shares);
+            request.cost_basis_eur = Number(request.cost_basis_eur);
+            for (const optionalField of ['isin', 'display_ticker', 'finnhub_symbol']) {
+                if (!request[optionalField]) delete request[optionalField];
+            }
+            submitButton.disabled = true;
+            status.textContent = 'Adding position…';
+            try {
+                const response = await fetch('/api/portfolio/positions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(request)
+                });
+                const payload = await response.json();
+                if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
+                form.reset();
+                await loadManagedPositions();
+                await refreshData();
+                status.textContent = `${payload.name} was added.`;
+            } catch (error) {
+                console.error('Could not add portfolio position:', error);
+                status.textContent = `Could not add position: ${error.message}`;
+            } finally {
+                submitButton.disabled = false;
+            }
+        });
+
+        document.getElementById('add-purchase-form').addEventListener('submit', async event => {
+            event.preventDefault();
+            if (!positionManagementUnlocked || !activePurchasePosition) return;
+            const form = event.currentTarget;
+            const submitButton = form.querySelector('[type="submit"]');
+            const status = document.getElementById('add-purchase-status');
+            const formData = new FormData(form);
+            const request = Object.fromEntries(formData.entries());
+            request.shares = Number(request.shares);
+            request.cost_basis_eur = Number(request.cost_basis_eur);
+            submitButton.disabled = true;
+            status.textContent = 'Saving purchase…';
+            try {
+                const identifier = positionIsin(activePurchasePosition);
+                const response = await fetch(
+                    `/api/portfolio/positions/${encodeURIComponent(identifier)}/purchases`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(request)
+                    }
+                );
+                const payload = await response.json();
+                if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
+                document.getElementById('add-purchase-dialog').close();
+                activePurchasePosition = null;
+                await loadManagedPositions();
+                await refreshData();
+                document.getElementById('managed-positions-status').textContent =
+                    `Purchase recorded for ${payload.position.name}.`;
+            } catch (error) {
+                console.error('Could not save purchase:', error);
+                status.textContent = `Could not save purchase: ${error.message}`;
+            } finally {
+                submitButton.disabled = false;
+            }
+        });
+
         const portfolioTableBody = document.getElementById('portfolio-table-body');
         const mobilePositionList = document.getElementById('mobile-list');
         const assetHistoryDialog = document.getElementById('asset-history-dialog');
@@ -898,6 +1352,7 @@
         }
         document.getElementById('market-provider').value = currentProvider;
         readCachedCatalog();
+        loadManagedPositions();
         if (currentProvider === 'yahoo') connectMarketStream();
         refreshData();
         loadPortfolioHistory('1d');
