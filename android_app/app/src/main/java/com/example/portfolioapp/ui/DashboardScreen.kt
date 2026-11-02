@@ -393,6 +393,7 @@ private fun HistorySection(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PeriodSelector(period: String, onSelected: (String) -> Unit) {
     Column(
@@ -706,6 +707,7 @@ private fun AssetHistorySheet(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsDialog(
     context: Context,
