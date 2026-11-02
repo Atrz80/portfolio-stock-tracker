@@ -3,9 +3,13 @@
 ## Quotes
 
 - **Yahoo Finance** is the default source. The backend serves snapshots, and
-  the web app receives push updates through `/ws/market`.
+  the web app receives push updates through `/ws/market` when market ticks
+  arrive. There is no fixed polling interval.
 - **Finnhub.io** fetches quotes via REST when this source is selected and when
   a price refresh is requested. It is not mixed with Yahoo push events.
+- Snapshots load at app startup, after changing providers or portfolio
+  positions, and when the user selects **Refresh prices** in the **Settings**
+  menu. The menu shows the time and reason for the last successful snapshot.
 - Finnhub requires `FINNHUB_API_KEY` in the global `.env` at
   `E:\Proyectos\ai-workstation`. Do not store the key in the repository or
   `.env.example`; the example contains only a placeholder value.

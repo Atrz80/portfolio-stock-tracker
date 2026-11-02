@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portfolio Stock Tracker - Live & Mobile Preview</title>
+    <title>Portfolio Stock Tracker</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -27,12 +27,35 @@
 
         @keyframes price-tick-up {
             0%, 100% { background-color: transparent; color: inherit; }
-            35% { background-color: rgba(16, 185, 129, 0.28); color: #6ee7b7; }
+            20% { background-color: rgba(16, 185, 129, 0.42); color: #6ee7b7; }
+            55% { background-color: rgba(16, 185, 129, 0.2); color: #a7f3d0; }
         }
 
         @keyframes price-tick-down {
             0%, 100% { background-color: transparent; color: inherit; }
-            35% { background-color: rgba(244, 63, 94, 0.28); color: #fda4af; }
+            20% { background-color: rgba(244, 63, 94, 0.42); color: #fda4af; }
+            55% { background-color: rgba(244, 63, 94, 0.2); color: #fecdd3; }
+        }
+
+        .asset-monogram {
+            color: var(--asset-color);
+            background-color: color-mix(in srgb, var(--asset-color) 14%, transparent);
+            border-color: color-mix(in srgb, var(--asset-color) 30%, transparent);
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: -0.04em;
+        }
+
+        #settings-dialog {
+            width: min(60rem, calc(100vw - 2rem));
+            max-width: none;
+            max-height: calc(100dvh - 2rem);
+            overflow-y: auto;
+        }
+
+        #settings-dialog::backdrop {
+            background: rgba(3, 7, 18, 0.78);
+            backdrop-filter: blur(3px);
         }
 
         .history-tooltip {
@@ -62,7 +85,8 @@
 
         @media (max-width: 640px) {
             main { padding: 1rem; }
-            header > div:last-child { width: 100%; }
+            header > div:last-child { width: 100%; flex-wrap: wrap; }
+            #btn-settings { flex-basis: 100%; }
             #btn-desktop, #btn-mobile { flex: 1; }
         }
     </style>
@@ -72,11 +96,13 @@
         <div class="flex items-center space-x-3">
             <div class="bg-indigo-600 p-2.5 rounded-xl text-white font-bold text-xl shadow-lg"><i class="fa-solid fa-chart-pie"></i></div>
             <div>
-                <h1 class="text-xl font-bold tracking-tight">Portfolio Stock Tracker & Android Preview</h1>
-                <p class="text-xs text-gray-400">CrewAI Optimized | Real-time Web & FastAPI Backend</p>
+                <h1 class="text-xl font-bold tracking-tight">Portfolio Stock Tracker</h1>
             </div>
         </div>
         <div class="flex items-center space-x-3">
+            <button id="btn-settings" type="button" onclick="openSettingsMenu()" aria-haspopup="dialog" aria-controls="settings-dialog" class="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm hover:bg-gray-700" aria-label="Open settings and portfolio management">
+                <i class="fa-solid fa-gear" aria-hidden="true"></i><span class="ml-2">Settings</span>
+            </button>
             <button onclick="setViewMode('desktop')" id="btn-desktop" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-sm font-semibold rounded-lg transition shadow"><i class="fa-solid fa-desktop mr-2"></i> Desktop view</button>
             <button onclick="setViewMode('mobile')" id="btn-mobile" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-sm font-semibold rounded-lg transition border border-gray-700"><i class="fa-solid fa-mobile-screen mr-2"></i> Android APK preview</button>
         </div>
@@ -84,19 +110,30 @@
 
     <main class="flex-1 p-6 flex justify-center items-start">
         <div class="w-full max-w-7xl">
-            <section class="mb-6 bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-3">
+            <dialog id="settings-dialog" aria-labelledby="settings-title" class="rounded-2xl border border-gray-700 bg-gray-950 p-0 text-gray-100 shadow-2xl">
+                <div class="p-5 sm:p-6">
+                    <div class="mb-5 flex items-center justify-between gap-4">
+                        <div>
+                            <h2 id="settings-title" class="text-xl font-bold">Settings and portfolio management</h2>
+                            <p class="mt-1 text-xs text-gray-400">Price providers, catalog tools, and position controls.</p>
+                        </div>
+                        <button type="button" onclick="closeSettingsMenu()" aria-label="Close settings" class="rounded-lg border border-gray-700 px-3 py-1.5 text-sm hover:bg-gray-800">Close</button>
+                    </div>
+                    <section class="mb-6 rounded-2xl border border-gray-800 bg-gray-900 p-4 space-y-3" aria-label="Market data and ticker catalog">
                 <div class="flex flex-wrap items-center gap-3">
                     <label for="market-provider" class="text-xs text-gray-400">Quote provider</label>
                     <select id="market-provider" onchange="changeMarketProvider(this.value)" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs">
                         <option value="yahoo">Yahoo Finance (push)</option>
                         <option value="finnhub">Finnhub.io (manual refresh)</option>
                     </select>
-                    <button id="refresh-prices" type="button" onclick="refreshData()" class="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-xs font-semibold rounded-lg border border-gray-700 transition">
+                    <button id="refresh-prices" type="button" onclick="refreshData('manual')" class="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-xs font-semibold rounded-lg border border-gray-700 transition">
                         <i class="fa-solid fa-rotate mr-1"></i> Refresh prices
                     </button>
                     <span id="market-source-status" role="status" class="text-xs text-gray-400">Connecting to Yahoo Finance…</span>
                     <span id="provider-preference-warning" role="status" class="hidden text-xs text-amber-400"></span>
                 </div>
+                <p class="text-xs text-gray-500">Yahoo Finance sends price updates when market ticks arrive. Snapshots load at startup, after provider or portfolio changes, and when you select Refresh prices. There is no fixed polling interval.</p>
+                <p id="market-refresh-info" role="status" class="text-xs text-gray-500">No price snapshot has loaded yet.</p>
                 <div class="flex flex-wrap items-center gap-2">
                     <label for="ticker-search" class="sr-only">Search the local ticker catalog</label>
                     <input id="ticker-search" type="search" oninput="searchTickers(this.value)" placeholder="Search the local ticker catalog (US)…" class="min-w-0 flex-1 bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-xs">
@@ -108,7 +145,7 @@
                 <div id="ticker-results" role="listbox" aria-label="Local catalog results" class="hidden max-h-40 overflow-y-auto bg-gray-950 border border-gray-700 rounded-lg p-2 text-xs"></div>
             </section>
 
-            <details class="mb-6 bg-gray-900 border border-gray-800 rounded-2xl p-4">
+            <details class="mb-6 rounded-2xl border border-gray-800 bg-gray-900 p-4">
                 <summary class="cursor-pointer font-semibold text-sm">Manage portfolio positions</summary>
                 <div class="mt-4 grid gap-5 lg:grid-cols-2">
                     <form id="add-position-form" class="space-y-3 rounded-xl border border-gray-800 bg-gray-950 p-4">
@@ -169,6 +206,11 @@
                     </section>
                 </div>
             </details>
+                    <footer class="border-t border-gray-800 pt-4 text-[11px] text-gray-500">
+                        Technical details: FastAPI backend · Yahoo Finance and Finnhub market data · CrewAI integration.
+                    </footer>
+                </div>
+            </dialog>
 
             <dialog id="add-purchase-dialog" class="rounded-2xl border border-gray-700 bg-gray-900 p-0 text-gray-100 shadow-2xl">
                 <form id="add-purchase-form" class="w-[min(92vw,28rem)] space-y-4 p-5">
@@ -195,7 +237,7 @@
 
         <!-- Desktop View -->
         <div id="desktop-view" class="w-full max-w-7xl space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="bg-gray-900 border border-gray-800 p-5 rounded-2xl shadow-sm">
                     <p class="text-xs text-gray-400 font-medium uppercase">Total portfolio value</p>
                     <h3 id="total-val" class="text-2xl font-extrabold mt-1 text-white">0,00 €</h3>
@@ -209,11 +251,6 @@
                     <p class="text-xs text-gray-400 font-medium uppercase">Total assets</p>
                     <h3 id="total-assets" class="text-2xl font-extrabold mt-1 text-indigo-400">4</h3>
                     <span class="text-xs text-gray-400 mt-2 inline-block">Stocks & crypto</span>
-                </div>
-                <div class="bg-gray-900 border border-gray-800 p-5 rounded-2xl shadow-sm">
-                    <p class="text-xs text-gray-400 font-medium uppercase">Backend & CrewAI</p>
-                    <h3 class="text-2xl font-extrabold mt-1 text-emerald-400">Connected</h3>
-                    <span class="text-xs text-emerald-500 mt-2 inline-block"><i class="fa-solid fa-circle-check"></i> FastAPI online</span>
                 </div>
             </div>
 
@@ -382,12 +419,20 @@
             }
         }
 
+        function openSettingsMenu() {
+            document.getElementById('settings-dialog').showModal();
+        }
+
+        function closeSettingsMenu() {
+            document.getElementById('settings-dialog').close();
+        }
+
         const currencyFormatter = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'EUR' });
         const providerStorageKey = 'portfolio.marketProvider';
         const catalogStorageKey = 'portfolio.tickerCatalog.finnhub.US.v1';
         const validProviders = new Set(['yahoo', 'finnhub']);
         const minimumPriceFlashChangeEur = 0.01;
-        const priceFlashChangeRatio = 0.001;
+        const priceFlashChangeRatio = 0.002;
         let currentProvider = 'yahoo';
         let tickerCatalog = [];
         let reconnectAttempts = 0;
@@ -409,6 +454,33 @@
 
         function positionIsin(stock) {
             return String(stock.ticker || '').split('•')[0].trim().toUpperCase();
+        }
+
+        function assetMonogram(stock) {
+            const name = String(stock.name || '').trim();
+            const normalizedName = name.toLowerCase();
+            let monogram;
+            if (/ishares/.test(normalizedName)) {
+                if (/semiconductor/.test(normalizedName)) monogram = 'SM';
+                else if (/emerging markets/.test(normalizedName)) monogram = 'EM';
+                else if (/small cap/.test(normalizedName)) monogram = 'SC';
+                else if (/world/.test(normalizedName)) monogram = 'WO';
+                else monogram = 'IS';
+            } else if (/vanguard/.test(normalizedName)) {
+                monogram = 'VG';
+            } else if (/amundi/.test(normalizedName)) {
+                monogram = 'AM';
+            } else {
+                const words = name.replace(/\b(incorporated|corporation|limited|ltd|plc|company|co)\b/gi, '')
+                    .match(/[A-Za-z0-9]+/g) || [];
+                monogram = words.length > 1
+                    ? words.slice(0, 2).map(word => word[0]).join('')
+                    : (words[0] || String(stock.marketSymbol || '?')).slice(0, 2);
+            }
+
+            const symbol = String(stock.marketSymbol || name);
+            const colorHue = [...symbol].reduce((hash, character) => (hash * 31 + character.charCodeAt(0)) >>> 0, 0) % 360;
+            return { monogram: monogram.toUpperCase().slice(0, 3), color: `hsl(${colorHue} 80% 68%)` };
         }
 
         function escapeHtml(value) {
@@ -437,14 +509,14 @@
             const positionValue = currencyFormatter.format(Number(stock.value ?? 0));
             const shares = Number(stock.shares ?? 0).toLocaleString('en-GB', { maximumFractionDigits: 6 });
             const productType = /\betf\b/i.test(stock.name) ? 'ETF' : 'Stock';
-            const productIcon = productType === 'ETF' ? 'fa-layer-group' : 'fa-chart-line';
             const quoteTime = stock.quoteTimestamp ? new Date(stock.quoteTimestamp).toLocaleString('en-GB') : 'no timestamp';
             const delivery = stock.dataStatus === 'realtime_push' ? 'push' : (stock.marketState && stock.marketState !== 'UNKNOWN' ? stock.marketState.toLowerCase() : 'snapshot');
             const source = stock.dataSource || 'Yahoo Finance';
+            const monogram = assetMonogram(stock);
             return {
                 change, colorClass, icon, marketPrice, portfolioPrice, changeText, quoteTime,
                 delivery: `${source} · ${delivery}`, gain, gainColorClass, gainText, gainPctText,
-                positionValue, shares, productType, productIcon
+                positionValue, shares, productType, monogram
             };
         }
 
@@ -455,7 +527,7 @@
                 <tr data-symbol="${escapeHtml(stock.marketSymbol)}" data-isin="${escapeHtml(isin)}" tabindex="0" role="button" aria-label="View history for ${escapeHtml(stock.name)}" class="cursor-pointer border-b border-gray-800/80 hover:bg-gray-800/60 focus:bg-gray-800/60 transition">
                     <td class="p-4">
                         <div class="flex items-center gap-3">
-                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-500/10 text-cyan-300"><i class="fa-solid ${view.productIcon}" aria-hidden="true"></i></span>
+                            <span class="asset-monogram flex h-10 w-10 shrink-0 items-center justify-center rounded-full border" style="--asset-color: ${view.monogram.color}" aria-hidden="true">${escapeHtml(view.monogram.monogram)}</span>
                             <div class="min-w-0">
                                 <div class="text-[10px] text-gray-500">${view.productType} · ${escapeHtml(stock.ticker.split('•')[0].trim())}</div>
                                 <div class="mt-0.5 max-w-[360px] text-sm font-bold leading-snug text-gray-100">${escapeHtml(stock.name)}</div>
@@ -489,7 +561,7 @@
                 <div data-symbol="${escapeHtml(stock.marketSymbol)}" data-isin="${escapeHtml(isin)}" tabindex="0" role="button" aria-label="View history for ${escapeHtml(stock.name)}" class="cursor-pointer rounded-xl border border-gray-800 bg-gray-900 p-3 text-xs hover:border-indigo-500 focus:border-indigo-500">
                     <div class="flex items-start justify-between gap-3">
                         <div class="flex min-w-0 items-center gap-2.5">
-                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-cyan-500/10 text-cyan-300"><i class="fa-solid ${view.productIcon}" aria-hidden="true"></i></span>
+                            <span class="asset-monogram flex h-9 w-9 shrink-0 items-center justify-center rounded-full border" style="--asset-color: ${view.monogram.color}" aria-hidden="true">${escapeHtml(view.monogram.monogram)}</span>
                             <div class="min-w-0">
                                 <p class="truncate text-sm font-bold text-gray-100">${escapeHtml(stock.name)}</p>
                                 <p class="mt-0.5 text-[10px] text-gray-500">${view.productType} · ${escapeHtml(stock.marketSymbol)}</p>
@@ -497,7 +569,7 @@
                         </div>
                         <div class="shrink-0 text-right">
                             <p class="font-semibold text-gray-100" data-field="position-value">${view.positionValue}</p>
-                            <p class="mt-0.5 text-[10px] text-gray-400"><span data-field="shares">${view.shares} shares</span> · <span data-field="portfolio-price">${view.portfolioPrice}</span></p>
+                            <p class="mt-0.5 text-[10px] text-gray-400"><span data-field="shares">${view.shares} shares</span> · <span class="price-value" data-field="portfolio-price">${view.portfolioPrice}</span></p>
                         </div>
                     </div>
                     <div class="mt-3 flex items-end justify-between border-t border-gray-800 pt-2.5">
@@ -678,11 +750,11 @@
             warning.classList.toggle('hidden', !message);
         }
 
-        async function refreshData() {
+        async function refreshData(reason = 'manual') {
             const button = document.getElementById('refresh-prices');
             const generation = ++refreshGeneration;
             button.disabled = true;
-            setMarketStatus(`Consultando ${currentProvider === 'yahoo' ? 'Yahoo Finance' : 'Finnhub.io'}…`);
+            setMarketStatus(`Checking ${currentProvider === 'yahoo' ? 'Yahoo Finance' : 'Finnhub.io'}…`);
             try {
                 const requestedProvider = currentProvider;
                 const response = await fetch(`/api/portfolio/realtime?provider=${encodeURIComponent(requestedProvider)}`);
@@ -702,7 +774,17 @@
                         assets: payload.length
                     }
                 });
-                setMarketStatus(`${payload[0]?.dataSource || (currentProvider === 'yahoo' ? 'Yahoo Finance' : 'Finnhub.io')} updated · ${new Date().toLocaleTimeString('en-GB')}`, 'success');
+                const updatedAt = new Date();
+                const reasons = {
+                    startup: 'app startup',
+                    provider_change: 'provider change',
+                    portfolio_change: 'portfolio change',
+                    manual: 'manual refresh'
+                };
+                const source = payload[0]?.dataSource || (currentProvider === 'yahoo' ? 'Yahoo Finance' : 'Finnhub.io');
+                setMarketStatus(`${source} snapshot updated · ${updatedAt.toLocaleTimeString('en-GB')}`, 'success');
+                document.getElementById('market-refresh-info').textContent =
+                    `Last snapshot: ${updatedAt.toLocaleString('en-GB')} · ${reasons[reason] || 'refresh'}.`;
             } catch (error) {
                 if (generation !== refreshGeneration) return;
                 console.error('Could not refresh prices:', error);
@@ -1044,7 +1126,7 @@
                 if (marketSocket && marketSocket.readyState < WebSocket.CLOSING) marketSocket.close();
                 setMarketStatus('Finnhub.io selected · prices update on demand');
             }
-            refreshData();
+            refreshData('provider_change');
         }
 
         function readCachedCatalog() {
@@ -1216,7 +1298,7 @@
                 const payload = await response.json();
                 if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
                 await loadManagedPositions();
-                await refreshData();
+                await refreshData('portfolio_change');
                 status.textContent = action === 'archive'
                     ? `${position.name} was archived and can be restored.`
                     : `${position.name} was restored.`;
@@ -1276,7 +1358,7 @@
                 if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
                 form.reset();
                 await loadManagedPositions();
-                await refreshData();
+                await refreshData('portfolio_change');
                 status.textContent = `${payload.name} was added.`;
             } catch (error) {
                 console.error('Could not add portfolio position:', error);
@@ -1313,7 +1395,7 @@
                 document.getElementById('add-purchase-dialog').close();
                 activePurchasePosition = null;
                 await loadManagedPositions();
-                await refreshData();
+                await refreshData('portfolio_change');
                 document.getElementById('managed-positions-status').textContent =
                     `Purchase recorded for ${payload.position.name}.`;
             } catch (error) {
@@ -1327,6 +1409,7 @@
         const portfolioTableBody = document.getElementById('portfolio-table-body');
         const mobilePositionList = document.getElementById('mobile-list');
         const assetHistoryDialog = document.getElementById('asset-history-dialog');
+        const settingsDialog = document.getElementById('settings-dialog');
         [portfolioTableBody, mobilePositionList].forEach(container => {
             container.addEventListener('click', event => {
                 const position = event.target.closest('[data-isin]');
@@ -1342,6 +1425,9 @@
         assetHistoryDialog.addEventListener('click', event => {
             if (event.target === assetHistoryDialog) closeAssetHistory();
         });
+        settingsDialog.addEventListener('click', event => {
+            if (event.target === settingsDialog) closeSettingsMenu();
+        });
 
         try {
             const savedProvider = localStorage.getItem(providerStorageKey);
@@ -1354,7 +1440,7 @@
         readCachedCatalog();
         loadManagedPositions();
         if (currentProvider === 'yahoo') connectMarketStream();
-        refreshData();
+        refreshData('startup');
         loadPortfolioHistory('1d');
     </script>
 </body>

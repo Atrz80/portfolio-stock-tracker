@@ -16,7 +16,8 @@ charts with pointer/touch crosshairs. Historical holdings are reconstructed
 from purchase transactions in the local `portfolio.json`; keep personal
 holdings and transaction records out of public commits.
 
-The dashboard's **Manage portfolio positions** panel can add, archive, and
+The dashboard's **Settings** menu contains quote providers, catalog controls,
+and the **Manage portfolio positions** panel. The panel can add, archive, and
 restore holdings. Adding a position requires its name, Yahoo Finance symbol,
 share count, total invested amount in EUR, and purchase date. ISIN, display
 ticker, and Finnhub symbol are optional. Archiving is reversible; position data
