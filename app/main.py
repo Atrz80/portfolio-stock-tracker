@@ -243,6 +243,26 @@ def _historical_portfolio_value(
     return result
 
 
+def _estimated_purchase_contributions(
+    portfolio: list[dict], start_timestamp: int, end_timestamp: int
+) -> float:
+    start_date = datetime.fromtimestamp(start_timestamp, timezone.utc).date()
+    end_date = datetime.fromtimestamp(end_timestamp, timezone.utc).date()
+    contributions = 0.0
+    for position in portfolio:
+        transactions = position.get("transactions") or []
+        total_shares = sum(float(transaction["shares"]) for transaction in transactions)
+        if total_shares <= 0:
+            continue
+        average_cost = position_cost_basis(position) / total_shares
+        contributions += sum(
+            float(transaction["shares"]) * average_cost
+            for transaction in transactions
+            if start_date < date.fromisoformat(transaction["date"]) <= end_date
+        )
+    return round(contributions, 2)
+
+
 @app.get("/api/portfolio/history")
 def get_portfolio_history(period: str = "1m", isin: str | None = None):
     periods = {
@@ -312,15 +332,19 @@ def get_portfolio_history(period: str = "1m", isin: str | None = None):
         requested_start = first_transaction
     else:
         requested_start = (now - window).date()
-    start_date = max(requested_start, first_transaction)
-    start_timestamp = int(
-        datetime.combine(start_date, datetime.min.time(), timezone.utc).timestamp()
+    start_date = (
+        requested_start
+        if asset and period != "max"
+        else max(requested_start, first_transaction)
     )
+    if asset and period == "max":
+        start_timestamp = 0
+    else:
+        start_timestamp = int(
+            datetime.combine(start_date, datetime.min.time(), timezone.utc).timestamp()
+        )
     end_timestamp = int(now.timestamp())
-    fetch_start = max(
-        int(datetime.combine(first_transaction, datetime.min.time(), timezone.utc).timestamp()),
-        start_timestamp - 7 * 86400,
-    )
+    fetch_start = max(0, start_timestamp - 7 * 86400)
 
     symbols = list(transactions_by_symbol)
     try:
@@ -380,9 +404,57 @@ def get_portfolio_history(period: str = "1m", isin: str | None = None):
             detail="Yahoo Finance returned no historical prices for the selected period.",
         )
 
-    points = _historical_portfolio_value(
-        selected_positions, market_histories, fx_histories, timestamps
-    )
+    if asset:
+        symbol = asset["market_symbol"]
+        currency, price_history = market_histories[symbol]
+        price_timestamps = [int(point["timestamp"]) for point in price_history]
+        indexed_fx = {
+            fx_symbol: (
+                [int(point["timestamp"]) for point in history],
+                [float(point["price"]) for point in history],
+            )
+            for fx_symbol, history in fx_histories.items()
+        }
+
+        def historical_price_in_eur(timestamp: int) -> float | None:
+            price_index = bisect_right(price_timestamps, timestamp) - 1
+            if price_index < 0:
+                return None
+            market_price = float(price_history[price_index]["price"])
+            if currency == "EUR":
+                return market_price
+            if currency == "JPY":
+                jpy_usd = bisect_right(
+                    indexed_fx[YAHOO_FX_SYMBOLS["JPY"]][0], timestamp
+                ) - 1
+                eur_usd = bisect_right(
+                    indexed_fx[YAHOO_FX_SYMBOLS["USD"]][0], timestamp
+                ) - 1
+                if jpy_usd < 0 or eur_usd < 0:
+                    return None
+                jpy_usd_rate = indexed_fx[YAHOO_FX_SYMBOLS["JPY"]][1][jpy_usd]
+                eur_usd_rate = indexed_fx[YAHOO_FX_SYMBOLS["USD"]][1][eur_usd]
+                return market_price * jpy_usd_rate / eur_usd_rate if eur_usd_rate > 0 else None
+            fx_symbol = YAHOO_FX_SYMBOLS.get(currency)
+            if not fx_symbol or fx_symbol not in indexed_fx:
+                return None
+            fx_timestamps, fx_prices = indexed_fx[fx_symbol]
+            fx_index = bisect_right(fx_timestamps, timestamp) - 1
+            if fx_index < 0:
+                return None
+            fx_price = fx_prices[fx_index]
+            fx_rate = 1.0 / fx_price if currency == "USD" else fx_price
+            return market_price * fx_rate
+
+        points = [
+            {"timestamp": timestamp, "value": round(price, 4)}
+            for timestamp in timestamps
+            if (price := historical_price_in_eur(timestamp)) is not None
+        ]
+    else:
+        points = _historical_portfolio_value(
+            selected_positions, market_histories, fx_histories, timestamps
+        )
     points = [point for point in points if float(point["value"]) > 0]
     if not points:
         raise HTTPException(
@@ -411,13 +483,54 @@ def get_portfolio_history(period: str = "1m", isin: str | None = None):
             for transaction in asset_transactions
             if date.fromisoformat(transaction["date"]) <= current_date
         )
-        asset["last_value"] = last_value
-        asset["unrealized_gain"] = round(last_value - asset["cost_basis"], 2)
+        asset["last_price"] = last_value
+        asset["last_value"] = round(last_value * asset["shares"], 2)
+        asset["unrealized_gain"] = round(
+            asset["last_value"] - asset["cost_basis"], 2
+        )
         asset["unrealized_gain_pct"] = (
-            round((last_value / asset["cost_basis"] - 1) * 100, 2)
+            round((asset["last_value"] / asset["cost_basis"] - 1) * 100, 2)
             if asset["cost_basis"]
             else 0.0
         )
+        asset["period_start_value"] = round(
+            float(points[0]["value"])
+            * sum(
+                float(transaction["shares"])
+                for transaction in asset_transactions
+                if date.fromisoformat(transaction["date"])
+                <= datetime.fromtimestamp(int(points[0]["timestamp"]), timezone.utc).date()
+            ),
+            2,
+        )
+        asset["period_end_value"] = round(
+            float(points[-1]["value"]) * asset["shares"], 2
+        )
+        investment_start_value = asset["period_start_value"]
+        investment_end_value = asset["period_end_value"]
+    else:
+        investment_start_value = first_value
+        investment_end_value = last_value
+
+    contributions = _estimated_purchase_contributions(
+        selected_positions, int(points[0]["timestamp"]), int(points[-1]["timestamp"])
+    )
+    starting_capital = investment_start_value + contributions
+    investment_gain = round(
+        investment_end_value - investment_start_value - contributions, 2
+    )
+    investment_summary = {
+        "start_value": investment_start_value,
+        "end_value": investment_end_value,
+        "estimated_contributions": contributions,
+        "gain": investment_gain,
+        "gain_pct": round(investment_gain / starting_capital * 100, 2)
+        if starting_capital
+        else 0.0,
+    }
+    if asset:
+        asset["period_gain"] = investment_gain
+        asset["period_gain_pct"] = investment_summary["gain_pct"]
 
     return {
         "period": period,
@@ -425,8 +538,13 @@ def get_portfolio_history(period: str = "1m", isin: str | None = None):
         "available_from": first_transaction.isoformat(),
         "asset": asset,
         "summary": summary,
+        "investment_summary": investment_summary,
         "points": points,
         "note": (
+            "Historical per-share prices are converted to EUR using historical "
+            "exchange rates. Your purchases and cost basis do not change this price chart."
+            if asset
+            else
             "Historical market value is reconstructed from recorded purchases and "
             "Yahoo Finance prices. Cash balance is excluded."
         ),

@@ -116,7 +116,7 @@
                     <h3 id="total-val" class="text-2xl font-extrabold mt-1 text-white">0,00 €</h3>
                 </div>
                 <div class="bg-gray-900 border border-gray-800 p-5 rounded-2xl shadow-sm">
-                    <p class="text-xs text-gray-400 font-medium uppercase">Total gain / loss</p>
+                    <p class="text-xs text-gray-400 font-medium uppercase">Unrealized gain / loss (all time)</p>
                     <h3 id="total-pl" class="text-2xl font-extrabold mt-1">0,00 €</h3>
                     <span id="total-pl-pct" class="text-xs mt-2 inline-block font-semibold">0.00%</span>
                 </div>
@@ -136,7 +136,7 @@
                 <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
                     <div>
                         <h3 id="history-title" class="font-bold text-lg">Portfolio history</h3>
-                        <p class="text-xs text-gray-400 mt-1">Estimated market value based on recorded purchases; cash is excluded.</p>
+                        <p class="text-xs text-gray-400 mt-1">Selected-period portfolio performance is separate from your all-time unrealized gain/loss.</p>
                     </div>
                     <div class="flex flex-wrap gap-2" role="group" aria-label="History period">
                         <button type="button" data-history-period="1d" onclick="loadPortfolioHistory('1d')" class="history-period-button px-3 py-1.5 rounded-lg text-xs bg-indigo-600">1D</button>
@@ -147,9 +147,12 @@
                         <button type="button" data-history-period="max" onclick="loadPortfolioHistory('max')" class="history-period-button px-3 py-1.5 rounded-lg text-xs bg-gray-800">ALL</button>
                     </div>
                 </div>
-                <div class="flex flex-wrap items-baseline gap-3 mb-2">
-                    <strong id="history-period-value" class="text-2xl font-bold">—</strong>
-                    <span id="history-period-change" class="text-sm text-gray-400">Loading history…</span>
+                <div class="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                    <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Value at period start</p><p id="history-start-value" class="mt-1 font-semibold">—</p></div>
+                    <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Value at period end</p><p id="history-period-value" class="mt-1 font-semibold">—</p></div>
+                    <div class="rounded-lg bg-gray-950 p-3"><p id="history-change-label" class="text-xs text-gray-400">Selected-period change</p><p id="history-period-change" class="mt-1 font-semibold">Loading history…</p></div>
+                    <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Estimated investment P/L</p><p id="history-investment-gain" class="mt-1 font-semibold">—</p></div>
+                    <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Period high / low</p><p id="history-high-low" class="mt-1 text-xs font-semibold">—</p></div>
                 </div>
                 <div id="portfolio-history-chart-shell" class="relative">
                 <svg id="portfolio-history-chart" viewBox="0 0 1000 260" preserveAspectRatio="none" role="img" aria-label="Historical portfolio market value chart. Move or tap to inspect values." tabindex="0" class="w-full h-56 overflow-visible touch-pan-y">
@@ -192,14 +195,15 @@
                         <button type="button" data-asset-history-period="ytd" onclick="loadAssetHistory('ytd')" class="asset-history-period-button rounded-lg bg-gray-800 px-3 py-1.5 text-xs" aria-pressed="false">YTD</button>
                         <button type="button" data-asset-history-period="max" onclick="loadAssetHistory('max')" class="asset-history-period-button rounded-lg bg-gray-800 px-3 py-1.5 text-xs" aria-pressed="false">ALL</button>
                     </div>
-                    <div class="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                        <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Last historical value</p><p id="asset-history-value" class="mt-1 font-semibold">—</p></div>
-                        <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Period change</p><p id="asset-history-change" class="mt-1 font-semibold">—</p></div>
-                        <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Period high</p><p id="asset-history-high" class="mt-1 font-semibold">—</p></div>
-                        <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Period low</p><p id="asset-history-low" class="mt-1 font-semibold">—</p></div>
+                    <div class="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                        <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Price per share at period end</p><p id="asset-history-value" class="mt-1 font-semibold">—</p></div>
+                        <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Price change in period</p><p id="asset-history-change" class="mt-1 font-semibold">—</p></div>
+                        <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Estimated P/L on your holding</p><p id="asset-history-investment-gain" class="mt-1 font-semibold">—</p></div>
+                        <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Period high per share</p><p id="asset-history-high" class="mt-1 font-semibold">—</p></div>
+                        <div class="rounded-lg bg-gray-950 p-3"><p class="text-xs text-gray-400">Period low per share</p><p id="asset-history-low" class="mt-1 font-semibold">—</p></div>
                     </div>
                     <div id="asset-history-chart-shell" class="relative">
-                        <svg id="asset-history-chart" viewBox="0 0 1000 260" preserveAspectRatio="none" role="img" aria-label="Historical asset value chart. Move or tap to inspect values." tabindex="0" class="w-full h-56 overflow-visible touch-pan-y">
+                        <svg id="asset-history-chart" viewBox="0 0 1000 260" preserveAspectRatio="none" role="img" aria-label="Historical price per share in euros. Move or tap to inspect values." tabindex="0" class="w-full h-56 overflow-visible touch-pan-y">
                             <defs>
                                 <linearGradient id="asset-history-gradient" x1="0" x2="0" y1="0" y2="1">
                                     <stop offset="0%" stop-color="#6366f1" stop-opacity="0.35"></stop>
@@ -645,15 +649,25 @@
             });
 
             const summary = payload.summary;
-            const changeLabel = `${summary.change >= 0 ? '+' : '−'}${currencyFormatter.format(Math.abs(summary.change))} (${summary.change_pct >= 0 ? '+' : ''}${summary.change_pct.toFixed(2)}%) over selected period`;
+            const changeLabel = `${summary.change >= 0 ? '+' : '−'}${currencyFormatter.format(Math.abs(summary.change))} (${summary.change_pct >= 0 ? '+' : ''}${summary.change_pct.toFixed(2)}%)`;
             const changeElement = document.getElementById('history-period-change');
             changeElement.textContent = changeLabel;
-            changeElement.className = `text-sm ${summary.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+            changeElement.className = `mt-1 font-semibold ${summary.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+            document.getElementById('history-start-value').textContent = currencyFormatter.format(summary.start_value);
             document.getElementById('history-period-value').textContent = currencyFormatter.format(summary.end_value);
+            const investmentSummary = payload.investment_summary;
+            const investmentGain = document.getElementById('history-investment-gain');
+            investmentGain.textContent =
+                `${investmentSummary.gain >= 0 ? '+' : '−'}${currencyFormatter.format(Math.abs(investmentSummary.gain))} (${investmentSummary.gain_pct >= 0 ? '+' : ''}${investmentSummary.gain_pct.toFixed(2)}%)`;
+            investmentGain.className = `mt-1 font-semibold ${investmentSummary.gain >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+            document.getElementById('history-high-low').textContent =
+                `High ${currencyFormatter.format(summary.high)} · ${new Date(summary.high_timestamp * 1000).toLocaleDateString('en-GB')} | Low ${currencyFormatter.format(summary.low)} · ${new Date(summary.low_timestamp * 1000).toLocaleDateString('en-GB')}`;
+            document.getElementById('history-change-label').textContent =
+                `Selected-period change (${payload.period.toUpperCase()})`;
             document.getElementById('history-start-label').textContent = new Date(points[0].timestamp * 1000).toLocaleDateString('en-GB');
             document.getElementById('history-end-label').textContent = new Date(points.at(-1).timestamp * 1000).toLocaleDateString('en-GB');
             document.getElementById('history-status').textContent =
-                `${payload.note} Available history starts ${new Date(`${payload.available_from}T00:00:00Z`).toLocaleDateString('en-GB')}.`;
+                `${payload.note} Range: ${new Date(points[0].timestamp * 1000).toLocaleString('en-GB')} to ${new Date(points.at(-1).timestamp * 1000).toLocaleString('en-GB')}.`;
         }
 
         async function loadPortfolioHistory(period) {
@@ -716,6 +730,10 @@
                 `${summary.change >= 0 ? '+' : '−'}${currencyFormatter.format(Math.abs(summary.change))} (${summary.change_pct >= 0 ? '+' : ''}${summary.change_pct.toFixed(2)}%)`;
             change.className = `mt-1 font-semibold ${summary.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
             document.getElementById('asset-history-value').textContent = currencyFormatter.format(summary.end_value);
+            const investmentGain = document.getElementById('asset-history-investment-gain');
+            investmentGain.textContent =
+                `${payload.asset.period_gain >= 0 ? '+' : '−'}${currencyFormatter.format(Math.abs(payload.asset.period_gain))} (${payload.asset.period_gain_pct >= 0 ? '+' : ''}${payload.asset.period_gain_pct.toFixed(2)}%)`;
+            investmentGain.className = `mt-1 font-semibold ${payload.asset.period_gain >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
             document.getElementById('asset-history-high').textContent =
                 `${currencyFormatter.format(summary.high)} · ${new Date(summary.high_timestamp * 1000).toLocaleDateString('en-GB')}`;
             document.getElementById('asset-history-low').textContent =
@@ -726,7 +744,7 @@
                 `${payload.note} Available history starts ${new Date(`${payload.available_from}T00:00:00Z`).toLocaleDateString('en-GB')}.`;
             const asset = payload.asset;
             document.getElementById('asset-history-details').textContent =
-                `${asset.shares} shares · Cost basis ${currencyFormatter.format(asset.cost_basis)} · Estimated unrealized P/L at the last available historical price: ${currencyFormatter.format(asset.unrealized_gain)} (${asset.unrealized_gain_pct >= 0 ? '+' : ''}${asset.unrealized_gain_pct.toFixed(2)}%).`;
+                `Share-price history is independent of your purchase dates. Your all-time position: ${asset.shares} shares · Cost basis ${currencyFormatter.format(asset.cost_basis)} · Estimated value at the last historical price ${currencyFormatter.format(asset.last_value)} · Unrealized P/L against your investment ${currencyFormatter.format(asset.unrealized_gain)} (${asset.unrealized_gain_pct >= 0 ? '+' : ''}${asset.unrealized_gain_pct.toFixed(2)}%). Period P/L estimates the effect on shares held and subtracts purchases using your average cost basis.`;
         }
 
         async function loadAssetHistory(period) {

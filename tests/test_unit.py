@@ -164,6 +164,11 @@ class ApplicationUnitTests(unittest.TestCase):
         self.assertEqual(result["currency"], "EUR")
         self.assertEqual(result["summary"]["high"], 25.0)
         self.assertEqual(result["summary"]["low"], 20.0)
+        self.assertEqual(result["summary"]["start_value"], 20.0)
+        self.assertEqual(result["summary"]["end_value"], 25.0)
+        self.assertEqual(result["summary"]["change"], 5.0)
+        self.assertEqual(result["investment_summary"]["gain"], 5.0)
+        self.assertEqual(result["investment_summary"]["estimated_contributions"], 0.0)
         self.assertEqual(result["points"][-1], {"timestamp": now - 10, "value": 25.0})
 
     def test_asset_history_endpoint_returns_position_details(self):
@@ -181,7 +186,8 @@ class ApplicationUnitTests(unittest.TestCase):
             ],
         }
         history = [
-            {"timestamp": now - 30, "price": 10.0},
+            {"timestamp": now - 31 * 86400, "price": 8.0},
+            {"timestamp": now - 30 * 86400, "price": 10.0},
             {"timestamp": now - 10, "price": 12.5},
         ]
 
@@ -201,7 +207,16 @@ class ApplicationUnitTests(unittest.TestCase):
         self.assertEqual(result["asset"]["shares"], 2.0)
         self.assertEqual(result["asset"]["cost_basis"], 18.0)
         self.assertEqual(result["asset"]["unrealized_gain"], 7.0)
-        self.assertEqual(result["summary"]["end_value"], 25.0)
+        self.assertEqual(result["asset"]["last_value"], 25.0)
+        self.assertEqual(result["summary"]["end_value"], 12.5)
+        self.assertEqual(result["summary"]["change"], 4.5)
+        self.assertEqual(result["points"][0]["value"], 8.0)
+        self.assertEqual(result["asset"]["period_start_value"], 0.0)
+        self.assertEqual(result["asset"]["period_end_value"], 25.0)
+        self.assertEqual(result["investment_summary"]["estimated_contributions"], 18.0)
+        self.assertEqual(result["investment_summary"]["gain"], 7.0)
+        self.assertEqual(result["asset"]["period_gain"], 7.0)
+        self.assertIn("per-share prices", result["note"])
 
     def test_asset_history_endpoint_rejects_unknown_isin(self):
         with patch.object(main_module, "load_portfolio_data", return_value=[{"ticker": "IE00BK5BQT80 • TEST"}]):
