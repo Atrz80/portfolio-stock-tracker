@@ -8,7 +8,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -239,14 +238,9 @@ fun DashboardScreen() {
             isLoadingCatalog = isLoadingCatalog,
             onDismiss = { isSettingsOpen = false },
             onSaveServerUrl = { input ->
-                runCatching { normalizeServerUrl(input) }
-                    .onSuccess { normalized ->
-                        serverUrl = normalized
-                        preferences.edit().putString(SERVER_URL_KEY, normalized).apply()
-                    }
-                    .onFailure {
-                        priceError = it.message ?: "Invalid server address."
-                    }
+                val normalized = normalizeServerUrl(input)
+                serverUrl = normalized
+                preferences.edit().putString(SERVER_URL_KEY, normalized).apply()
             },
             onProviderSelected = { selected ->
                 provider = selected
@@ -401,16 +395,23 @@ private fun HistorySection(
 
 @Composable
 private fun PeriodSelector(period: String, onSelected: (String) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        historyPeriods.forEach { option ->
-            FilterChip(
-                selected = period == option,
-                onClick = { onSelected(option) },
-                label = { Text(periodLabel(option)) }
-            )
+        historyPeriods.chunked(3).forEach { rowPeriods ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                rowPeriods.forEach { option ->
+                    FilterChip(
+                        selected = period == option,
+                        onClick = { onSelected(option) },
+                        label = { Text(periodLabel(option)) }
+                    )
+                }
+            }
         }
     }
 }
@@ -427,7 +428,11 @@ private fun ChartSummary(title: String, primaryValue: String, change: Double, ch
 }
 
 @Composable
-private fun InteractiveHistoryChart(points: List<HistoryPoint>, modifier: Modifier = Modifier) {
+private fun InteractiveHistoryChart(
+    points: List<HistoryPoint>,
+    modifier: Modifier = Modifier,
+    includeZero: Boolean = false
+) {
     var selectedIndex by remember(points) { mutableStateOf<Int?>(null) }
     val lineColor = MaterialTheme.colorScheme.primary
     val dotColor = MaterialTheme.colorScheme.tertiary
@@ -464,25 +469,41 @@ private fun InteractiveHistoryChart(points: List<HistoryPoint>, modifier: Modifi
     ) {
         val padding = 12.dp.toPx()
         val values = points.map { it.value }
-        val minValue = values.minOrNull() ?: 0.0
-        val maxValue = values.maxOrNull() ?: 0.0
+        val minValue = (values.minOrNull() ?: 0.0).let { if (includeZero) minOf(it, 0.0) else it }
+        val maxValue = (values.maxOrNull() ?: 0.0).let { if (includeZero) maxOf(it, 0.0) else it }
         val range = (maxValue - minValue).takeIf { it > 0.0 } ?: 1.0
         val graphWidth = size.width - padding * 2
         val graphHeight = size.height - padding * 2
+        val baselineY = if (maxValue == minValue) {
+            size.height / 2f
+        } else if (includeZero) {
+            size.height - padding - ((0.0 - minValue) / range * graphHeight).toFloat()
+        } else {
+            size.height - padding
+        }
         val coordinates = points.mapIndexed { index, point ->
             Offset(
                 x = padding + graphWidth * index / (points.size - 1),
-                y = size.height - padding - ((point.value - minValue) / range * graphHeight).toFloat()
+                y = if (maxValue == minValue) size.height / 2f
+                else size.height - padding - ((point.value - minValue) / range * graphHeight).toFloat()
             )
         }
 
         val area = Path().apply {
-            moveTo(coordinates.first().x, size.height - padding)
+            moveTo(coordinates.first().x, baselineY)
             coordinates.forEach { lineTo(it.x, it.y) }
-            lineTo(coordinates.last().x, size.height - padding)
+            lineTo(coordinates.last().x, baselineY)
             close()
         }
         drawPath(area, color = lineColor.copy(alpha = 0.14f))
+        if (includeZero) {
+            drawLine(
+                color = lineColor.copy(alpha = 0.35f),
+                start = Offset(padding, baselineY),
+                end = Offset(size.width - padding, baselineY),
+                strokeWidth = 1.dp.toPx()
+            )
+        }
         val line = Path().apply {
             coordinates.forEachIndexed { index, coordinate ->
                 if (index == 0) moveTo(coordinate.x, coordinate.y) else lineTo(coordinate.x, coordinate.y)
@@ -658,7 +679,11 @@ private fun AssetHistorySheet(
                             change = change,
                             changePct = changePct
                         )
-                        InteractiveHistoryChart(points, Modifier.fillMaxWidth().height(190.dp))
+                        InteractiveHistoryChart(
+                            points,
+                            Modifier.fillMaxWidth().height(190.dp),
+                            includeZero = investmentView
+                        )
                         loaded.asset?.let { asset ->
                             SummaryLine("Position value", euro(asset.lastValue), "${asset.shares.toDisplayNumber()} shares")
                             SummaryLine("Cost basis", euro(asset.costBasis), "Estimated from recorded purchases")
@@ -699,6 +724,7 @@ private fun SettingsDialog(
     var serverInput by remember(serverUrl) { mutableStateOf(serverUrl) }
     var search by remember { mutableStateOf("") }
     var dashboardError by remember { mutableStateOf<String?>(null) }
+    var serverAddressStatus by remember { mutableStateOf<String?>(null) }
     val matchingEntries = catalog?.symbols.orEmpty().filter {
         search.isBlank() || it.matches(search)
     }.take(100)
@@ -726,7 +752,7 @@ private fun SettingsDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                HorizontalDivider()
+                Divider()
                 Text("Backend address", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 OutlinedTextField(
                     value = serverInput,
@@ -737,12 +763,27 @@ private fun SettingsDialog(
                     singleLine = true
                 )
                 OutlinedButton(
-                    onClick = { onSaveServerUrl(serverInput) },
+                    onClick = {
+                        try {
+                            onSaveServerUrl(serverInput)
+                            serverAddressStatus = "Server address saved. Reconnecting…"
+                        } catch (error: Exception) {
+                            serverAddressStatus = error.message ?: "Invalid server address."
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Save server address")
                 }
-                HorizontalDivider()
+                serverAddressStatus?.let {
+                    Text(
+                        it,
+                        color = if (it.startsWith("Server address saved")) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                Divider()
                 Text("Ticker catalog · $CATALOG_EXCHANGE", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Text(
                     catalog?.updatedAt?.let { "Last updated: $it" } ?: "No catalog saved on this device.",
@@ -772,7 +813,7 @@ private fun SettingsDialog(
                     }
                     TextButton(onClick = onClearCatalog) { Text("Clear local catalog cache") }
                 }
-                HorizontalDivider()
+                Divider()
                 Text(
                     "Connection note: on a real phone, keep the PC dashboard server running and connect both devices to the same trusted Wi-Fi. The local API has no login; do not expose it on public Wi-Fi.",
                     style = MaterialTheme.typography.labelSmall,
